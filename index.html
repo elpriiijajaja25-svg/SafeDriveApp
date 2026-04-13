@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeDrive AI Pro</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --danger: #ef4444; --warning: #f59e0b; --success: #10b981; --text: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background: #000; color: var(--text); margin: 0; display: flex; justify-content: center; }
+        .app-shell { width: 100%; max-width: 410px; height: 100vh; background: var(--bg); position: relative; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+        .emergency { display: none; position: absolute; inset: 0; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); }
+        .blink { animation: blinker 0.2s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0.6; } }
+        .header { padding: 30px 20px 10px; }
+        .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
+        .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .page { display: none; padding: 20px; flex: 1; overflow-y: auto; padding-bottom: 90px; }
+        .page.active { display: block; animation: slideUp 0.3s ease; }
+        .card { background: var(--card); border-radius: 24px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; }
+        .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #334155; }
+        .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; }
+        .nav-btn.active { color: var(--primary); }
+        button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-test { background: var(--primary); color: #000; margin-top: 8px; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="app-shell">
+    <div id="alert-sueno" class="emergency blink" style="background: rgba(239, 68, 68, 0.95);">
+        <h1 style="font-size: 6rem; margin: 0;">😴</h1>
+        <h2 style="font-size: 2rem;">¡SUEÑO DETECTADO!</h2>
+        <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%; margin-top: 20px;">ESTOY DESPIERTO</button>
+    </div>
+
+    <div id="alert-celular" class="emergency" style="background: rgba(245, 158, 11, 0.95);">
+        <h1 style="font-size: 6rem; margin: 0;">📱</h1>
+        <h2 style="font-size: 2rem;">¡SUELTE EL CELULAR!</h2>
+        <button onclick="stopAll()" style="background: white; color: var(--warning); width: 60%; margin-top: 20px;">ENTENDIDO</button>
+    </div>
+
+    <div class="header">
+        <div class="user-chip">
+            <div class="avatar">EP</div>
+            <div>
+                <p style="margin: 0; font-size: 0.85rem; font-weight: bold;">ELPEPE Driver</p>
+                <small id="status-txt" style="color: var(--danger);">● Desconectado</small>
+            </div>
+        </div>
+    </div>
+
+    <div id="p-home" class="page active">
+        <div class="card" style="text-align: center;">
+            <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 10px;">ESTADO DEL DÍA</p>
+            <canvas id="dayChart" style="max-height: 160px;"></canvas>
+        </div>
+        <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
+            <h4 style="margin: 0;">Semáforo de Fatiga</h4>
+            <p id="fatigue-msg" style="margin: 5px 0 0; font-size: 0.9rem; color: var(--success);">Conducción segura.</p>
+        </div>
+    </div>
+
+    <div id="p-stats" class="page">
+        <h3>Historial</h3>
+        <div class="card"><canvas id="weekChart"></canvas></div>
+        <div class="card">
+            <p>Alertas de Sueño: <b id="tot-sueno">0</b></p>
+            <p>Alertas de Celular: <b id="tot-cel">0</b></p>
+        </div>
+    </div>
+
+    <div id="p-test" class="page">
+        <h3>Pruebas de Sistema</h3>
+        <div class="card">
+            <button onclick="setupAudio()" style="background: var(--success); color: white;">Activar Altavoz</button>
+        </div>
+        <div class="card">
+            <p style="font-size: 0.8rem; color: #94a3b8;">Simular envío a HiveMQ:</p>
+            <button class="btn-test" onclick="enviarTest('SUEÑO')">Test Sueño</button>
+            <button class="btn-test" style="background: var(--warning);" onclick="enviarTest('CELULAR')">Test Celular</button>
+        </div>
+        <button onclick="resetApp()" style="background: transparent; color: #64748b; font-size: 0.7rem;">Borrar Datos Locales</button>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
+        <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Reportes</div>
+        <div class="nav-btn" onclick="nav('p-test', this)">⚙️<br>Tests</div>
+    </nav>
+</div>
+
+<script>
+    let audio = null, osc = null;
+    const client = mqtt.connect('wss://3f6846583aaa42d1bcf10c88481b63fd.s1.eu.hivemq.cloud:8884/mqtt', { username: 'ELPEPE', password: 'LOCO123j' });
+    
+    let db = JSON.parse(localStorage.getItem('safedrive_final_db')) || {
+        semana: [0, 0, 0, 0, 0, 0, 0],
+        tipos: { sueno: 0, celular: 0 }
+    };
+
+    function setupAudio() { audio = new (window.AudioContext || window.webkitAudioContext)(); alert("Sistema de sonido listo"); }
+
+    function playTone(f, t) {
+        if (!audio || osc) return;
+        osc = audio.createOscillator();
+        osc.type = t;
+        osc.frequency.setValueAtTime(f, audio.currentTime);
+        osc.connect(audio.destination);
+        osc.start();
+    }
+
+    client.on('connect', () => {
+        document.getElementById('status-txt').innerText = "● Sistema Online";
+        document.getElementById('status-txt').style.color = "var(--success)";
+        client.subscribe("conductor/ia");
+        refresh();
+    });
+
+    client.on('message', (topic, message) => {
+        const msg = message.toString();
+        activarAlertaVisualYSonora(msg);
+    });
+
+    function enviarTest(tipo) {
+        client.publish("conductor/ia", tipo);
+        console.log("Mensaje enviado: " + tipo);
+    }
+
+    function activarAlertaVisualYSonora(tipo) {
+        const hoy = (new Date().getDay() + 6) % 7;
+        
+        if (tipo === 'SUEÑO') {
+            document.getElementById('alert-sueno').style.display = 'flex';
+            playTone(900, 'square');
+            db.tipos.sueno++;
+            db.semana[hoy]++;
+        } else if (tipo === 'CELULAR') {
+            document.getElementById('alert-celular').style.display = 'flex';
+            playTone(400, 'sawtooth');
+            db.tipos.celular++;
+            db.semana[hoy]++;
+        }
+        
+        localStorage.setItem('safedrive_final_db', JSON.stringify(db));
+        if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
+        refresh();
+    }
+
+    function stopAll() {
+        document.querySelectorAll('.emergency').forEach(e => e.style.display = 'none');
+        if (osc) {
+            osc.stop();
+            osc.disconnect();
+            osc = null; 
+        }
+    }
+
+    function refresh() {
+        document.getElementById('tot-sueno').innerText = db.tipos.sueno;
+        document.getElementById('tot-cel').innerText = db.tipos.celular;
+        renderCharts();
+    }
+
+    function nav(id, el) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        el.classList.add('active');
+    }
+
+    let c1, c2;
+    function renderCharts() {
+        const ctxD = document.getElementById('dayChart').getContext('2d');
+        if(c1) c1.destroy();
+        c1 = new Chart(ctxD, {
+            type: 'doughnut',
+            data: {
+                labels: ['SUEÑO', 'CELULAR', 'SEGURO'],
+                datasets: [{ data: [db.tipos.sueno, db.tipos.celular, 10], backgroundColor: ['#ef4444', '#f59e0b', '#1e293b'], borderWidth: 0 }]
+            },
+            options: { cutout: '80%', plugins: { legend: { display: false } } }
+        });
+
+        const ctxW = document.getElementById('weekChart').getContext('2d');
+        if(c2) c2.destroy();
+        c2 = new Chart(ctxW, {
+            type: 'bar',
+            data: {
+                labels: ['L','M','X','J','V','S','D'],
+                datasets: [{ label: 'Alertas', data: db.semana, backgroundColor: '#38bdf8', borderRadius: 8 }]
+            }
+        });
+    }
+
+    function resetApp() { localStorage.clear(); location.reload(); }
+</script>
+</body>
+</html>
