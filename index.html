@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SafeDrive AI Pro</title>
     <link rel="manifest" href="manifest.json">
+    
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -19,7 +20,7 @@
         .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         .page { display: none; padding: 20px; flex: 1; overflow-y: auto; padding-bottom: 90px; }
         .page.active { display: block; animation: slideUp 0.3s ease; }
-        .card { background: var(--card); border-radius: 24px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; }
+        .card { background: var(--card); border-radius: 24px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; transition: 0.3s; }
         .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #334155; }
         .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; }
         .nav-btn.active { color: var(--primary); }
@@ -33,7 +34,7 @@
 <div class="app-shell">
     <div id="alert-sueno" class="emergency blink" style="background: rgba(239, 68, 68, 0.95);">
         <h1 style="font-size: 6rem; margin: 0;">😴</h1>
-        <h2 style="font-size: 2rem;">¡SUEÑO DETECTADO!</h2>
+        <h2 style="font-size: 2rem;">¡MICROSUEÑO DETECTADO!</h2>
         <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%; margin-top: 20px;">ESTOY DESPIERTO</button>
     </div>
 
@@ -58,6 +59,7 @@
             <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 10px;">ESTADO DEL DÍA</p>
             <canvas id="dayChart" style="max-height: 160px;"></canvas>
         </div>
+        
         <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
             <h4 style="margin: 0;">Semáforo de Fatiga</h4>
             <p id="fatigue-msg" style="margin: 5px 0 0; font-size: 0.9rem; color: var(--success);">Conducción segura.</p>
@@ -127,7 +129,6 @@
 
     function enviarTest(tipo) {
         client.publish("conductor/ia", tipo);
-        console.log("Mensaje enviado: " + tipo);
     }
 
     function activarAlertaVisualYSonora(tipo) {
@@ -152,16 +153,31 @@
 
     function stopAll() {
         document.querySelectorAll('.emergency').forEach(e => e.style.display = 'none');
-        if (osc) {
-            osc.stop();
-            osc.disconnect();
-            osc = null; 
-        }
+        if (osc) { osc.stop(); osc.disconnect(); osc = null; }
     }
 
     function refresh() {
         document.getElementById('tot-sueno').innerText = db.tipos.sueno;
         document.getElementById('tot-cel').innerText = db.tipos.celular;
+        
+        // LÓGICA DE LA GRÁFICA / SEMÁFORO
+        const fatigueCard = document.getElementById('fatigue-card');
+        const fatigueMsg = document.getElementById('fatigue-msg');
+
+        if (db.tipos.sueno >= 3) {
+            fatigueCard.style.borderLeft = "8px solid var(--danger)";
+            fatigueMsg.innerText = "¡PELIGRO! Debes descansar de inmediato. Demasiados microsueños.";
+            fatigueMsg.style.color = "var(--danger)";
+        } else if (db.tipos.sueno > 0) {
+            fatigueCard.style.borderLeft = "8px solid var(--warning)";
+            fatigueMsg.innerText = "Precaución: Se detectó cansancio. Considera un descanso.";
+            fatigueMsg.style.color = "var(--warning)";
+        } else {
+            fatigueCard.style.borderLeft = "8px solid var(--success)";
+            fatigueMsg.innerText = "Conducción segura.";
+            fatigueMsg.style.color = "var(--success)";
+        }
+
         renderCharts();
     }
 
