@@ -4,14 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- Metadatos de Instalación (PWA) -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Neon Racer">
     <meta name="theme-color" content="#00f7ff">
     
-    <title>Neon Racer: Premium Edition</title>
+    <title>Neon Racer: Nitro Drift Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -109,6 +108,27 @@
         .hud-label { font-size: 0.6rem; color: #00f7ff; opacity: 0.7; letter-spacing: 2px; }
         .hud-value { font-size: 1.4rem; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
 
+        .nitro-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 247, 255, 0.3);
+        }
+
+        #nitro-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #00f7ff, #0088ff);
+            box-shadow: 0 0 15px #00f7ff;
+            transition: width 0.1s;
+        }
+
         .gemini-box {
             background: rgba(0, 247, 255, 0.03);
             border-left: 3px solid #00f7ff;
@@ -127,7 +147,7 @@
         <!-- Pantalla de Inicio -->
         <div id="ui-menu" class="overlay">
             <h1 class="text-4xl font-bold mb-1 italic text-cyan-400" style="text-shadow: 0 0 25px #00f7ff;">NEON RACER</h1>
-            <p class="text-[0.6rem] tracking-[0.6em] mb-12 opacity-50 uppercase">Nitro Fusion v7.0</p>
+            <p class="text-[0.6rem] tracking-[0.6em] mb-12 opacity-50 uppercase">Nitro Fusion v8.0</p>
             
             <div id="daily-msg" class="gemini-box">
                 Sincronizando sistemas con Gemini...
@@ -169,29 +189,15 @@
                 <span class="hud-label">CRÉDITOS</span>
                 <span class="hud-value text-yellow-400" id="hud-credits">0</span>
             </div>
+            <div class="nitro-container">
+                <div id="nitro-bar"></div>
+            </div>
         </div>
 
         <canvas id="canvas"></canvas>
     </div>
 
     <script>
-        // --- AUTO-GENERACIÓN DE MANIFEST PARA INSTALACIÓN ---
-        const manifest = {
-            "name": "Neon Racer",
-            "short_name": "NeonRacer",
-            "start_url": ".",
-            "display": "standalone",
-            "background_color": "#000000",
-            "theme_color": "#00f7ff",
-            "orientation": "portrait"
-        };
-        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-        const manifestURL = URL.createObjectURL(manifestBlob);
-        const manifestLink = document.createElement('link');
-        manifestLink.rel = 'manifest';
-        manifestLink.href = manifestURL;
-        document.head.appendChild(manifestLink);
-
         const apiKey = ""; 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -212,6 +218,8 @@
         let currentCarIdx = 0;
         let gameSpeed = 8;
         let diffFactor = 1;
+        let nitro = 100;
+        let shake = 0;
 
         const CARS = [
             { name: "RECRUIT", color: "#00f7ff", sec: "#003344", price: 0, owned: true },
@@ -223,6 +231,7 @@
         let player = { x: 0, targetX: 0, w: 42, h: 78, tilt: 0 };
         let obstacles = [];
         let coins = [];
+        let particles = [];
         let roadOffset = 0;
 
         // --- GEMINI API ---
@@ -239,7 +248,7 @@
                 });
                 const data = await res.json();
                 return data.candidates[0].content.parts[0].text;
-            } catch (e) { return "Error de enlace con la red."; }
+            } catch (e) { return "Enlace inestable. Pilota con cuidado."; }
         }
 
         async function initAI() {
@@ -252,11 +261,11 @@
             const box = document.getElementById('ai-text');
             btn.classList.add('hidden');
             box.classList.remove('hidden');
-            box.innerText = "Analizando impacto...";
+            box.innerText = "Analizando telemetría...";
             
             const advice = await callGemini(
-                `El piloto chocó a los ${Math.floor(score/10)}km. Dame un consejo de conducción breve y con personalidad cyberpunk.`,
-                "Eres un ingeniero de carreras cínico."
+                `El piloto chocó a los ${Math.floor(score/10)}km. Dame un consejo de conducción breve y cyberpunk.`,
+                "Eres un ingeniero de carreras experto."
             );
             box.innerText = advice;
         }
@@ -266,13 +275,34 @@
         window.addEventListener('keydown', e => keys[e.code] = true);
         window.addEventListener('keyup', e => keys[e.code] = false);
 
-        window.addEventListener('touchstart', e => {
-            if (gameState !== 'PLAYING') return;
-            const touchX = e.touches[0].clientX;
-            const step = w / 4;
-            if (touchX < w / 2) player.targetX = Math.max(40, player.targetX - step);
-            else player.targetX = Math.min(w - 80, player.targetX + step);
-        });
+        // --- PARTÍCULAS (HUMO) ---
+        function createSmoke(x, y) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 2,
+                vy: 2 + Math.random() * 2,
+                size: 5 + Math.random() * 10,
+                opacity: 0.6
+            });
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.size += 0.5;
+                p.opacity -= 0.02;
+                
+                ctx.fillStyle = `rgba(150, 150, 150, ${p.opacity})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (p.opacity <= 0) particles.splice(i, 1);
+            }
+        }
 
         // --- DIBUJO DE VEHÍCULOS ---
         function drawCar(x, y, width, height, data, isEnemy = false, tilt = 0) {
@@ -302,19 +332,11 @@
                 ctx.fillStyle = "#ff0000";
                 ctx.fillRect(-width / 2 + 5, -height / 2 + 4, 8, 4);
                 ctx.fillRect(width / 2 - 13, -height / 2 + 4, 8, 4);
-                ctx.fillStyle = data.sec;
-                ctx.fillRect(-width/2 + 2, -height/2 + 2, width - 4, 4);
             } else {
                 ctx.fillStyle = "#fff";
                 ctx.shadowBlur = 15;
                 ctx.fillRect(-width / 2 + 5, -height / 2 + 4, 10, 5);
                 ctx.fillRect(width / 2 - 15, -height / 2 + 4, 10, 5);
-                
-                ctx.fillStyle = data.color;
-                if (Math.random() > 0.3) {
-                    ctx.fillRect(-width / 2 + 8, height / 2 - 2, 6, 6);
-                    ctx.fillRect(width / 2 - 14, height / 2 - 2, 6, 6);
-                }
             }
 
             ctx.restore();
@@ -326,11 +348,7 @@
             if (Math.random() < 0.02 * diffFactor) {
                 const lanes = [w*0.125, w*0.375, w*0.625, w*0.875];
                 const laneX = lanes[Math.floor(Math.random() * 4)];
-                const colors = [
-                    { color: "#ff2255", sec: "#330011" },
-                    { color: "#ffaa00", sec: "#332200" },
-                    { color: "#aa00ff", sec: "#220033" }
-                ];
+                const colors = [{ color: "#ff2255", sec: "#330011" }, { color: "#ffaa00", sec: "#332200" }];
                 const style = colors[Math.floor(Math.random() * colors.length)];
                 obstacles.push({ x: laneX - 20, y: -100, ...style });
             }
@@ -343,14 +361,32 @@
         function gameLoop() {
             if (gameState !== 'PLAYING') return;
 
+            // Camera Shake & Nitro Physics
+            let isNitro = keys['Space'] && nitro > 0;
+            if (isNitro) {
+                nitro -= 0.6;
+                diffFactor = THREE_MUL = 1.6;
+                shake = (Math.random() - 0.5) * 4;
+            } else {
+                if (nitro < 100) nitro += 0.2;
+                diffFactor = 1 + (score / 10000);
+                shake = 0;
+            }
+            gameSpeed = (isNitro ? 16 : 8) * diffFactor;
+
+            ctx.save();
+            ctx.translate(shake, shake);
+
             ctx.fillStyle = "#050505";
             ctx.fillRect(0, 0, w, h);
 
+            // Dibujar Humo
+            updateParticles();
+
             roadOffset = (roadOffset + gameSpeed) % 120;
-            ctx.strokeStyle = "rgba(0, 247, 255, 0.08)";
-            ctx.setLineDash([40, 80]);
+            ctx.strokeStyle = isNitro ? "rgba(0, 247, 255, 0.2)" : "rgba(0, 247, 255, 0.08)";
+            ctx.setLineDash([isNitro ? 80 : 40, isNitro ? 40 : 80]);
             ctx.lineDashOffset = -roadOffset;
-            ctx.lineWidth = 2;
             for(let i=1; i<4; i++) {
                 ctx.beginPath(); ctx.moveTo((w/4)*i, 0); ctx.lineTo((w/4)*i, h); ctx.stroke();
             }
@@ -358,14 +394,20 @@
             if (keys['ArrowLeft'] && player.targetX > 30) player.targetX -= 12;
             if (keys['ArrowRight'] && player.targetX < w - 80) player.targetX += 12;
 
+            let prevX = player.x;
             player.x += (player.targetX - player.x) * 0.15;
             player.tilt = (player.targetX - player.x) * 0.04;
 
-            score++;
-            diffFactor = 1 + (score / 5000);
-            gameSpeed = 8 * diffFactor;
+            // Humo en derrape o nitro
+            if (Math.abs(player.x - prevX) > 2 || isNitro) {
+                createSmoke(player.x + 10, player.y + 70);
+                createSmoke(player.x + 30, player.y + 70);
+            }
+
+            score += isNitro ? 2 : 1;
             document.getElementById('hud-dist').innerText = Math.floor(score/10);
             document.getElementById('hud-credits').innerText = sessionCoins;
+            document.getElementById('nitro-bar').style.width = nitro + "%";
 
             spawn();
 
@@ -390,13 +432,14 @@
 
             drawCar(player.x, player.y, player.w, player.h, CARS[currentCarIdx], false, player.tilt);
 
+            ctx.restore();
             requestAnimationFrame(gameLoop);
         }
 
         // --- UI ---
         function startGame() {
             gameState = 'PLAYING';
-            score = 0; sessionCoins = 0; obstacles = []; coins = [];
+            score = 0; sessionCoins = 0; nitro = 100; obstacles = []; coins = []; particles = [];
             player.targetX = w/2 - 21; player.x = player.targetX;
             player.y = h - 160;
             document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
