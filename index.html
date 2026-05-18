@@ -14,8 +14,30 @@
     
     <style>
         :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --danger: #ef4444; --warning: #f59e0b; --success: #10b981; --text: #f1f5f9; }
-        body { font-family: 'Inter', sans-serif; background: #000; color: var(--text); margin: 0; display: flex; justify-content: center; overflow: hidden; }
-        .app-shell { width: 100%; max-width: 410px; height: 100vh; background: var(--bg); position: relative; display: flex; flex-direction: column; }
+        
+        /* CORRECCIÓN CELULAR: Cambiamos overflow:hidden por flex y min-height para que la barra inferior no se corte */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #000; 
+            color: var(--text); 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        
+        /* CORRECCIÓN DISPLAY: Ajustamos el contenedor móvil para que sea flexible y respete la barra de navegación */
+        .app-shell { 
+            width: 100%; 
+            max-width: 410px; 
+            height: 100vh; 
+            background: var(--bg); 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between;
+        }
         
         #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .btn-google { background: white; color: #000; border: none; padding: 15px 25px; border-radius: 50px; font-weight: bold; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
@@ -24,18 +46,37 @@
         .blink { animation: blinker 0.2s linear infinite; }
         @keyframes blinker { 50% { opacity: 0.6; } }
         
-        .header { padding: 30px 20px 10px; }
+        .header { padding: 20px 20px 5px; flex-shrink: 0; }
         .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
         .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; }
         .avatar img { width: 100%; height: 100%; object-fit: cover; }
         
-        .page { display: none; padding: 20px; flex: 1; overflow-y: auto; padding-bottom: 90px; }
+        /* Espacio dinámico para que las páginas no tapen los botones inferiores */
+        .page { 
+            display: none; 
+            padding: 15px; 
+            flex: 1; 
+            overflow-y: auto; 
+            margin-bottom: 75px; 
+        }
         .page.active { display: block; }
-        .card { background: var(--card); border-radius: 24px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; }
+        .card { background: var(--card); border-radius: 24px; padding: 15px; margin-bottom: 12px; border: 1px solid #334155; }
         
-        .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #334155; }
-        .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; }
-        .nav-btn.active { color: var(--primary); }
+        /* CORRECCIÓN MENÚ INFERIOR: Posicionamiento fijo con z-index alto para garantizar visibilidad en pantallas táctiles */
+        .nav { 
+            position: absolute; 
+            bottom: 0; 
+            width: 100%; 
+            background: #1e293b; 
+            display: flex; 
+            justify-content: space-around; 
+            padding: 12px 0; 
+            border-top: 1px solid #334155;
+            z-index: 4000;
+            box-sizing: border-box;
+        }
+        .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; flex: 1; }
+        .nav-btn.active { color: var(--primary); font-weight: bold; }
         button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
     </style>
 </head>
@@ -76,8 +117,8 @@
     </div>
 
     <div id="p-home" class="page active">
-        <div class="card" style="text-align: center;">
-            <canvas id="dayChart" style="max-height: 160px;"></canvas>
+        <div class="card" style="text-align: center; display: flex; justify-content: center; align-items: center;">
+            <canvas id="dayChart" style="max-height: 140px; max-width: 140px;"></canvas>
         </div>
         <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
             <h4 style="margin: 0;">Estado de Conducción</h4>
@@ -86,16 +127,16 @@
     </div>
 
     <div id="p-stats" class="page">
-        <h3>Reporte Semanal</h3>
-        <div class="card"><canvas id="weekChart"></canvas></div>
+        <h3 style="margin-top: 0;">Reporte Semanal</h3>
+        <div class="card"><canvas id="weekChart" style="max-height: 180px;"></canvas></div>
         <div class="card">
-            <p>Alertas de Sueño: <b id="tot-sueno">0</b></p>
-            <p>Alertas de Celular: <b id="tot-cel">0</b></p>
+            <p style="margin: 5px 0;">Alertas de Sueño: <b id="tot-sueno">0</b></p>
+            <p style="margin: 5px 0;">Alertas de Celular: <b id="tot-cel">0</b></p>
         </div>
     </div>
 
     <div id="p-test" class="page">
-        <h3>Panel de Pruebas</h3>
+        <h3 style="margin-top: 0;">Panel de Pruebas</h3>
         <button onclick="setupAudio()" style="background: var(--success); color: white; margin-bottom: 10px;">1. Activar Altavoz</button>
         <button onclick="enviarTest('SUEÑO')" style="background: var(--primary); color: black; margin-bottom: 10px;">Test Microsueño</button>
         <button onclick="enviarTest('CELULAR')" style="background: var(--warning); color: black;">Test Celular</button>
@@ -110,7 +151,6 @@
 </div>
 
 <script>
-    // Configuración de tu base de datos Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyD4bepO4wdEpxJPZ6CgWI5r1Rnok8tpYlA",
         authDomain: "safedriveauth.firebaseapp.com",
@@ -138,11 +178,10 @@
 
     let audio = null, osc = null;
 
-    // PARCHE DE INGENIERÍA: Enlace directo al broker libre EMQX vía WebSockets sin contraseñas rotas
-    const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt');
-    const MQTT_TOPIC = "pepe_antifatiga/microsuenos"; // Mismo canal que tu ESP32
+    /* SOLUCIÓN GITHUB PAGES: Puerto 8084 y protocolo seguro 'wss' para que no rechace la conexión */
+    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+    const MQTT_TOPIC = "pepe_antifatiga/microsuenos";
 
-    // Base de datos local en LocalStorage
     let db = JSON.parse(localStorage.getItem('safedrive_db_v2')) || { 
         semana: [0,0,0,0,0,0,0], 
         suenos: 0, 
@@ -161,20 +200,16 @@
         refresh();
     });
 
-    // Interceptor de mensajes en tiempo real sincronizado con el hardware
     client.on('message', (t, m) => { 
         const msg = m.toString();
-        console.log("Señal de telemetría recibida:", msg);
-        
-        // El ESP32 robusto manda '1' en microsueño y '0' cuando se recupera
+        console.log("Señal recibida:", msg);
         if(msg === 'SUEÑO' || msg === '1') alerta('sueno');
         if(msg === 'CELULAR') alerta('celular');
-        if(msg === '0' || msg === 'OK') stopAll(); // Normalización automática
+        if(msg === '0' || msg === 'OK') stopAll(); 
     });
 
     function alerta(tipo) {
-        const hoy = (new Date().getDay() + 6) % 7; // Calcular índice del día actual (0=Lunes, 6=Domingo)
-        
+        const hoy = (new Date().getDay() + 6) % 7; 
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno').style.display = 'flex';
             if (audio) { playTone(800, 'square'); }
@@ -184,7 +219,6 @@
             if (audio) { playTone(400, 'sawtooth'); }
             db.celular++;
         }
-        
         db.semana[hoy]++;
         localStorage.setItem('safedrive_db_v2', JSON.stringify(db));
         refresh();
@@ -214,11 +248,11 @@
 
         if (db.suenos >= 3) {
             card.style.borderLeft = "8px solid var(--danger)";
-            msg.innerText = "¡PELIGRO! Demasiados microsueños detectados.";
+            msg.innerText = "¡PELIGRO! Demasiados microsueños.";
             msg.style.color = "var(--danger)";
         } else if (db.celular > 0) {
             card.style.borderLeft = "8px solid var(--warning)";
-            msg.innerText = "Atención: Distracciones con el celular.";
+            msg.innerText = "Atención: Distracciones.";
             msg.style.color = "var(--warning)";
         } else {
             card.style.borderLeft = "8px solid var(--success)";
@@ -228,7 +262,6 @@
         renderCharts();
     }
 
-    // Permitir inyectar datos de prueba directo desde los botones de la interfaz
     function enviarTest(m) { client.publish(MQTT_TOPIC, m); }
     
     function nav(id, el) { 
@@ -258,7 +291,8 @@
             data: { 
                 labels: ['L','M','X','J','V','S','D'], 
                 datasets: [{ label: 'Alertas Totales', data: db.semana, backgroundColor: '#38bdf8' }] 
-            } 
+            },
+            options: { responsive: true, maintainAspectRatio: false }
         });
     }
 </script>
