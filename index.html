@@ -2,517 +2,265 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeDrive AI Pro</title>
+    <link rel="manifest" href="manifest.json">
     
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Neon Racer">
-    <meta name="theme-color" content="#00f7ff">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     
-    <title>Neon Racer: Nitro Drift Edition</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --danger: #ef4444; --warning: #f59e0b; --success: #10b981; --text: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background: #000; color: var(--text); margin: 0; display: flex; justify-content: center; overflow: hidden; }
+        .app-shell { width: 100%; max-width: 410px; height: 100vh; background: var(--bg); position: relative; display: flex; flex-direction: column; }
         
-        * {
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: none;
-        }
+        #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .btn-google { background: white; color: #000; border: none; padding: 15px 25px; border-radius: 50px; font-weight: bold; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            color: #fff;
-            font-family: 'Orbitron', sans-serif;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        #game-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 450px;
-            background: #050505;
-            overflow: hidden;
-            box-shadow: 0 0 50px rgba(0, 247, 255, 0.1);
-        }
-
-        canvas {
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-        }
-
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 20;
-            padding: 30px;
-            backdrop-filter: blur(10px);
-        }
-
-        .hidden { display: none !important; }
-
-        .btn-neon {
-            background: linear-gradient(180deg, rgba(0, 247, 255, 0.1) 0%, rgba(0, 0, 0, 0.5) 100%);
-            border: 2px solid #00f7ff;
-            color: #00f7ff;
-            padding: 16px 24px;
-            margin: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            font-weight: bold;
-            border-radius: 4px;
-            width: 80%;
-            font-size: 0.9rem;
-            text-shadow: 0 0 5px #00f7ff;
-            text-align: center;
-        }
-
-        .btn-neon:active {
-            background: #00f7ff;
-            color: #000;
-            box-shadow: 0 0 30px #00f7ff;
-            transform: translateY(2px);
-        }
-
-        #hud {
-            position: absolute;
-            top: 40px;
-            left: 0;
-            width: 100%;
-            padding: 0 25px;
-            display: flex;
-            justify-content: space-between;
-            pointer-events: none;
-            z-index: 10;
-        }
-
-        .hud-item { display: flex; flex-direction: column; }
-        .hud-label { font-size: 0.6rem; color: #00f7ff; opacity: 0.7; letter-spacing: 2px; }
-        .hud-value { font-size: 1.4rem; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
-
-        .nitro-container {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60%;
-            height: 6px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid rgba(0, 247, 255, 0.3);
-        }
-
-        #nitro-bar {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, #00f7ff, #0088ff);
-            box-shadow: 0 0 15px #00f7ff;
-            transition: width 0.1s;
-        }
-
-        /* Controles táctiles móviles */
-        #touch-controls {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            z-index: 5;
-            pointer-events: auto;
-        }
-
-        .touch-zone {
-            width: 100%;
-            height: 100%;
-            opacity: 0; /* Invisibles para no tapar el arte */
-        }
-
-        /* Indicador de ayuda táctil inicial */
-        .touch-hint {
-            position: absolute;
-            bottom: 10%;
-            width: 100%;
-            text-align: center;
-            font-size: 0.6rem;
-            opacity: 0.4;
-            letter-spacing: 1px;
-            pointer-events: none;
-        }
-
-        .gemini-box {
-            background: rgba(0, 247, 255, 0.03);
-            border-left: 3px solid #00f7ff;
-            padding: 15px;
-            margin: 20px 0;
-            font-size: 0.8rem;
-            color: #aaf;
-            line-height: 1.5;
-            font-style: italic;
-        }
+        .emergency { display: none; position: absolute; inset: 0; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); color: white; }
+        .blink { animation: blinker 0.2s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0.6; } }
+        
+        .header { padding: 30px 20px 10px; }
+        .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
+        .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .page { display: none; padding: 20px; flex: 1; overflow-y: auto; padding-bottom: 90px; }
+        .page.active { display: block; }
+        .card { background: var(--card); border-radius: 24px; padding: 20px; margin-bottom: 15px; border: 1px solid #334155; }
+        
+        .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #334155; }
+        .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; }
+        .nav-btn.active { color: var(--primary); }
+        button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <!-- Pantalla de Inicio -->
-        <div id="ui-menu" class="overlay">
-            <h1 class="text-4xl font-bold mb-1 italic text-cyan-400" style="text-shadow: 0 0 25px #00f7ff;">NEON RACER</h1>
-            <p class="text-[0.6rem] tracking-[0.6em] mb-12 opacity-50 uppercase">Nitro Fusion v9.0</p>
-            
-            <div id="daily-msg" class="gemini-box">
-                Sincronizando sistemas con Gemini...
-            </div>
+<div id="p-login">
+    <h1 style="font-size: 4rem; margin: 0;">🚗</h1>
+    <h2 style="margin-bottom: 5px;">SafeDrive AI</h2>
+    <p style="color: #94a3b8; margin-bottom: 30px;">Tu copiloto inteligente</p>
+    <button class="btn-google" onclick="login()">
+        <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" width="20">
+        Entrar con Google
+    </button>
+</div>
 
-            <button class="btn-neon" onclick="startGame()">Iniciar Enlace</button>
-            <button class="btn-neon" onclick="toggleShop(true)">Garaje</button>
-            <p class="text-[0.5rem] mt-6 opacity-30">Controles: Flechas/Touch para Girar • Espacio/Touch Central para Nitro</p>
-        </div>
-
-        <!-- Garaje -->
-        <div id="ui-shop" class="overlay hidden">
-            <h2 class="text-2xl font-bold mb-6 text-white">GARAJE</h2>
-            <div class="mb-4 text-yellow-400 font-bold">CREDITOS: <span id="shop-credits">0</span></div>
-            <div id="car-selector" class="grid grid-cols-2 gap-4 w-full"></div>
-            <button class="btn-neon mt-8" onclick="toggleShop(false)">Volver</button>
-        </div>
-
-        <!-- Game Over -->
-        <div id="ui-over" class="overlay hidden">
-            <h2 class="text-3xl font-bold text-red-500 mb-2">COLISIÓN DETECTADA</h2>
-            <div class="text-2xl mb-8" id="final-dist">0 KM</div>
-            
-            <div id="ai-feedback" class="w-full mb-6">
-                <button id="btn-ai" class="btn-neon !text-[0.7rem]" onclick="askGemini()">Consultar Ingeniero ✨</button>
-                <div id="ai-text" class="gemini-box hidden"></div>
-            </div>
-
-            <button class="btn-neon" onclick="startGame()">Reiniciar</button>
-            <button class="btn-neon" onclick="toggleShop(true)">Tienda</button>
-        </div>
-
-        <!-- HUD -->
-        <div id="hud" class="hidden">
-            <div class="hud-item">
-                <span class="hud-label">DISTANCIA</span>
-                <span class="hud-value" id="hud-dist">0</span>
-            </div>
-            <div class="hud-item text-right">
-                <span class="hud-label">CRÉDITOS</span>
-                <span class="hud-value text-yellow-400" id="hud-credits">0</span>
-            </div>
-            
-            <div class="nitro-container">
-                <div id="nitro-bar"></div>
-            </div>
-
-            <!-- Capa de controles táctiles -->
-            <div id="touch-controls">
-                <div class="touch-zone" id="touch-left"></div>
-                <div class="touch-zone" id="touch-right"></div>
-                <div class="touch-zone col-span-2" id="touch-nitro"></div>
-            </div>
-            <div class="touch-hint" id="hint-text">TOCA LOS LADOS PARA GIRAR • BASE PARA NITRO</div>
-        </div>
-
-        <canvas id="canvas"></canvas>
+<div class="app-shell">
+    
+    <div id="alert-sueno" class="emergency blink" style="background: rgba(239, 68, 68, 0.95);">
+        <h1 style="font-size: 5rem;">😴</h1>
+        <h2>¡MICROSUEÑO!</h2>
+        <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%;">ESTOY DESPIERTO</button>
     </div>
 
-    <script>
-        const apiKey = ""; 
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+    <div id="alert-celular" class="emergency" style="background: rgba(245, 158, 11, 0.95);">
+        <h1 style="font-size: 5rem;">📱</h1>
+        <h2>¡DEJE EL CELULAR!</h2>
+        <button onclick="stopAll()" style="background: white; color: var(--warning); width: 60%;">ENTENDIDO</button>
+    </div>
+
+    <div class="header">
+        <div class="user-chip">
+            <div id="user-photo" class="avatar">?</div>
+            <div>
+                <p id="user-name" style="margin: 0; font-size: 0.85rem; font-weight: bold;">Cargando...</p>
+                <small id="status-txt" style="color: var(--danger);">● Offline</small>
+            </div>
+        </div>
+    </div>
+
+    <div id="p-home" class="page active">
+        <div class="card" style="text-align: center;">
+            <canvas id="dayChart" style="max-height: 160px;"></canvas>
+        </div>
+        <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
+            <h4 style="margin: 0;">Estado de Conducción</h4>
+            <p id="fatigue-msg" style="margin: 5px 0 0; font-size: 0.9rem; color: var(--success);">Conducción segura.</p>
+        </div>
+    </div>
+
+    <div id="p-stats" class="page">
+        <h3>Reporte Semanal</h3>
+        <div class="card"><canvas id="weekChart"></canvas></div>
+        <div class="card">
+            <p>Alertas de Sueño: <b id="tot-sueno">0</b></p>
+            <p>Alertas de Celular: <b id="tot-cel">0</b></p>
+        </div>
+    </div>
+
+    <div id="p-test" class="page">
+        <h3>Panel de Pruebas</h3>
+        <button onclick="setupAudio()" style="background: var(--success); color: white; margin-bottom: 10px;">1. Activar Altavoz</button>
+        <button onclick="enviarTest('SUEÑO')" style="background: var(--primary); color: black; margin-bottom: 10px;">Test Microsueño</button>
+        <button onclick="enviarTest('CELULAR')" style="background: var(--warning); color: black;">Test Celular</button>
+        <button onclick="firebase.auth().signOut()" style="margin-top: 20px; background: transparent; color: var(--danger);">Cerrar Sesión</button>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
+        <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Stats</div>
+        <div class="nav-btn" onclick="nav('p-test', this)">⚙️<br>Config</div>
+    </nav>
+</div>
+
+<script>
+    // Configuración de tu base de datos Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyD4bepO4wdEpxJPZ6CgWI5r1Rnok8tpYlA",
+        authDomain: "safedriveauth.firebaseapp.com",
+        projectId: "safedriveauth",
+        storageBucket: "safedriveauth.firebasestorage.app",
+        messagingSenderId: "157033724386",
+        appId: "1:157033724386:web:b3b465fe2f8ee0cd3aa1bb"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    function login() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider);
+    }
+
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('p-login').style.display = 'none';
+            document.getElementById('user-name').innerText = user.displayName;
+            document.getElementById('user-photo').innerHTML = `<img src="${user.photoURL}">`;
+        } else {
+            document.getElementById('p-login').style.display = 'flex';
+        }
+    });
+
+    let audio = null, osc = null;
+
+    // PARCHE DE INGENIERÍA: Enlace directo al broker libre EMQX vía WebSockets sin contraseñas rotas
+    const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt');
+    const MQTT_TOPIC = "pepe_antifatiga/microsuenos"; // Mismo canal que tu ESP32
+
+    // Base de datos local en LocalStorage
+    let db = JSON.parse(localStorage.getItem('safedrive_db_v2')) || { 
+        semana: [0,0,0,0,0,0,0], 
+        suenos: 0, 
+        celular: 0 
+    };
+
+    function setupAudio() { 
+        audio = new (window.AudioContext || window.webkitAudioContext)(); 
+        alert("Sonido de Alarma Sincronizado"); 
+    }
+    
+    client.on('connect', () => { 
+        document.getElementById('status-txt').innerText = "● Sistema Online";
+        document.getElementById('status-txt').style.color = "var(--success)";
+        client.subscribe(MQTT_TOPIC);
+        refresh();
+    });
+
+    // Interceptor de mensajes en tiempo real sincronizado con el hardware
+    client.on('message', (t, m) => { 
+        const msg = m.toString();
+        console.log("Señal de telemetría recibida:", msg);
         
-        let w, h;
-        function resize() {
-            w = canvas.width = window.innerWidth > 450 ? 450 : window.innerWidth;
-            h = canvas.height = window.innerHeight;
+        // El ESP32 robusto manda '1' en microsueño y '0' cuando se recupera
+        if(msg === 'SUEÑO' || msg === '1') alerta('sueno');
+        if(msg === 'CELULAR') alerta('celular');
+        if(msg === '0' || msg === 'OK') stopAll(); // Normalización automática
+    });
+
+    function alerta(tipo) {
+        const hoy = (new Date().getDay() + 6) % 7; // Calcular índice del día actual (0=Lunes, 6=Domingo)
+        
+        if (tipo === 'sueno') {
+            document.getElementById('alert-sueno').style.display = 'flex';
+            if (audio) { playTone(800, 'square'); }
+            db.suenos++;
+        } else {
+            document.getElementById('alert-celular').style.display = 'flex';
+            if (audio) { playTone(400, 'sawtooth'); }
+            db.celular++;
         }
-        window.addEventListener('resize', resize);
-        resize();
+        
+        db.semana[hoy]++;
+        localStorage.setItem('safedrive_db_v2', JSON.stringify(db));
+        refresh();
+    }
 
-        // --- CONFIGURACIÓN ---
-        let gameState = 'MENU';
-        let score = 0;
-        let credits = 0;
-        let sessionCoins = 0;
-        let currentCarIdx = 0;
-        let gameSpeed = 8;
-        let diffFactor = 1;
-        let nitro = 100;
-        let shake = 0;
+    function playTone(freq, type) {
+        if (osc) stopAll();
+        osc = audio.createOscillator();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audio.currentTime);
+        osc.connect(audio.destination);
+        osc.start();
+    }
 
-        const CARS = [
-            { name: "RECRUIT", color: "#00f7ff", sec: "#003344", price: 0, owned: true },
-            { name: "PULSE", color: "#ff00ff", sec: "#440044", price: 200, owned: false },
-            { name: "GHOST", color: "#ffffff", sec: "#222222", price: 500, owned: false },
-            { name: "NITRO", color: "#33ff00", sec: "#003300", price: 1000, owned: false }
-        ];
+    function stopAll() {
+        document.getElementById('alert-sueno').style.display = 'none';
+        document.getElementById('alert-celular').style.display = 'none';
+        if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
+    }
 
-        let player = { x: 0, targetX: 0, w: 42, h: 78, tilt: 0 };
-        let obstacles = [];
-        let coins = [];
-        let particles = [];
-        let roadOffset = 0;
+    function refresh() {
+        document.getElementById('tot-sueno').innerText = db.suenos;
+        document.getElementById('tot-cel').innerText = db.celular;
+        
+        const card = document.getElementById('fatigue-card');
+        const msg = document.getElementById('fatigue-msg');
 
-        // --- GEMINI API ---
-        async function callGemini(prompt, sys) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            try {
-                const res = await fetch(url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: sys }] }
-                    })
-                });
-                const data = await res.json();
-                return data.candidates[0].content.parts[0].text;
-            } catch (e) { return "Conexión neuronal inestable."; }
+        if (db.suenos >= 3) {
+            card.style.borderLeft = "8px solid var(--danger)";
+            msg.innerText = "¡PELIGRO! Demasiados microsueños detectados.";
+            msg.style.color = "var(--danger)";
+        } else if (db.celular > 0) {
+            card.style.borderLeft = "8px solid var(--warning)";
+            msg.innerText = "Atención: Distracciones con el celular.";
+            msg.style.color = "var(--warning)";
+        } else {
+            card.style.borderLeft = "8px solid var(--success)";
+            msg.innerText = "Conducción segura.";
+            msg.style.color = "var(--success)";
         }
+        renderCharts();
+    }
 
-        async function initAI() {
-            const msg = await callGemini("Genera un mensaje de bienvenida corto y futurista para un piloto.", "Eres una IA de un auto deportivo del futuro.");
-            document.getElementById('daily-msg').innerText = msg;
-        }
+    // Permitir inyectar datos de prueba directo desde los botones de la interfaz
+    function enviarTest(m) { client.publish(MQTT_TOPIC, m); }
+    
+    function nav(id, el) { 
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        el.classList.add('active');
+    }
 
-        async function askGemini() {
-            const btn = document.getElementById('btn-ai');
-            const box = document.getElementById('ai-text');
-            btn.classList.add('hidden');
-            box.classList.remove('hidden');
-            box.innerText = "Analizando impacto...";
-            
-            const advice = await callGemini(
-                `El piloto chocó a los ${Math.floor(score/10)}km. Dame un consejo de conducción breve y cyberpunk.`,
-                "Eres un ingeniero de carreras experto."
-            );
-            box.innerText = advice;
-        }
-
-        // --- INPUTS (HÍBRIDOS) ---
-        const keys = {};
-        const touch = { left: false, right: false, nitro: false };
-
-        window.addEventListener('keydown', e => keys[e.code] = true);
-        window.addEventListener('keyup', e => keys[e.code] = false);
-
-        // Configuración de Touch Zones
-        const setupTouch = (id, key) => {
-            const el = document.getElementById(id);
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); touch[key] = true; });
-            el.addEventListener('touchend', (e) => { e.preventDefault(); touch[key] = false; });
-            el.addEventListener('touchcancel', (e) => { e.preventDefault(); touch[key] = false; });
-        };
-
-        setupTouch('touch-left', 'left');
-        setupTouch('touch-right', 'right');
-        setupTouch('touch-nitro', 'nitro');
-
-        // --- PARTÍCULAS ---
-        function createSmoke(x, y) {
-            particles.push({
-                x: x,
-                y: y,
-                vx: (Math.random() - 0.5) * 2,
-                vy: 2 + Math.random() * 2,
-                size: 5 + Math.random() * 8,
-                opacity: 0.5
-            });
-        }
-
-        function updateParticles() {
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.x += p.vx; p.y += p.vy; p.size += 0.3; p.opacity -= 0.02;
-                ctx.fillStyle = `rgba(100, 240, 255, ${p.opacity * 0.5})`;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-                if (p.opacity <= 0) particles.splice(i, 1);
-            }
-        }
-
-        // --- DIBUJO ---
-        function drawCar(x, y, width, height, data, isEnemy = false, tilt = 0) {
-            ctx.save();
-            ctx.translate(x + width / 2, y + height / 2);
-            ctx.rotate(tilt);
-            ctx.shadowBlur = isEnemy ? 10 : 20;
-            ctx.shadowColor = data.color;
-            ctx.fillStyle = data.sec;
-            ctx.beginPath(); ctx.roundRect(-width / 2, -height / 2, width, height, 8); ctx.fill();
-            ctx.fillStyle = data.color;
-            ctx.beginPath(); ctx.roundRect(-width / 2 + 4, -height / 2 + 12, width - 8, height - 24, 4); ctx.fill();
-            ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-            ctx.beginPath(); ctx.roundRect(-width / 2 + 8, -height / 2 + 20, width - 16, 22, 5); ctx.fill();
-            if (!isEnemy) {
-                ctx.fillStyle = "#fff";
-                ctx.fillRect(-width / 2 + 5, -height / 2 + 4, 10, 5);
-                ctx.fillRect(width / 2 - 15, -height / 2 + 4, 10, 5);
-            } else {
-                ctx.fillStyle = "#ff0000";
-                ctx.fillRect(-width / 2 + 5, -height / 2 + 4, 8, 4);
-                ctx.fillRect(width / 2 - 13, -height / 2 + 4, 8, 4);
-            }
-            ctx.restore();
-            ctx.shadowBlur = 0;
-        }
-
-        function spawn() {
-            if (Math.random() < 0.02 * diffFactor) {
-                const laneX = [w*0.125, w*0.375, w*0.625, w*0.875][Math.floor(Math.random() * 4)];
-                obstacles.push({ x: laneX - 20, y: -100, color: "#ff2255", sec: "#330011" });
-            }
-            if (Math.random() < 0.015) {
-                const laneX = [w*0.125, w*0.375, w*0.625, w*0.875][Math.floor(Math.random() * 4)];
-                coins.push({ x: laneX - 15, y: -50 });
-            }
-        }
-
-        function gameLoop() {
-            if (gameState !== 'PLAYING') return;
-
-            let isNitro = (keys['Space'] || touch.nitro) && nitro > 0;
-            if (isNitro) {
-                nitro -= 0.7; shake = (Math.random() - 0.5) * 5;
-            } else {
-                if (nitro < 100) nitro += 0.15; shake = 0;
-            }
-            gameSpeed = (isNitro ? 16 : 9) * diffFactor;
-
-            ctx.save();
-            ctx.translate(shake, shake);
-            ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, w, h);
-
-            updateParticles();
-
-            roadOffset = (roadOffset + gameSpeed) % 120;
-            ctx.strokeStyle = isNitro ? "rgba(0, 247, 255, 0.3)" : "rgba(0, 247, 255, 0.1)";
-            ctx.setLineDash([isNitro ? 80 : 40, isNitro ? 40 : 80]);
-            ctx.lineDashOffset = -roadOffset;
-            for(let i=1; i<4; i++) {
-                ctx.beginPath(); ctx.moveTo((w/4)*i, 0); ctx.lineTo((w/4)*i, h); ctx.stroke();
-            }
-
-            // Movimiento Proporcional
-            if ((keys['ArrowLeft'] || touch.left) && player.targetX > 30) player.targetX -= 14;
-            if ((keys['ArrowRight'] || touch.right) && player.targetX < w - 80) player.targetX += 14;
-
-            let prevX = player.x;
-            player.x += (player.targetX - player.x) * 0.18;
-            player.tilt = (player.targetX - player.x) * 0.05;
-
-            if (Math.abs(player.x - prevX) > 1 || isNitro) {
-                createSmoke(player.x + 10, player.y + 70);
-                createSmoke(player.x + 30, player.y + 70);
-            }
-
-            score += isNitro ? 2 : 1;
-            diffFactor = 1 + (score / 15000);
-            
-            document.getElementById('hud-dist').innerText = Math.floor(score/10);
-            document.getElementById('hud-credits').innerText = sessionCoins;
-            document.getElementById('nitro-bar').style.width = nitro + "%";
-
-            spawn();
-
-            obstacles.forEach((o, i) => {
-                o.y += gameSpeed * 0.8;
-                drawCar(o.x, o.y, 40, 75, o, true);
-                if (Math.abs(player.x - o.x) < 36 && Math.abs(player.y - o.y) < 70) gameOver();
-                if (o.y > h) obstacles.splice(i, 1);
-            });
-
-            coins.forEach((c, i) => {
-                c.y += gameSpeed;
-                ctx.fillStyle = "#ffd700"; ctx.shadowBlur = 15; ctx.shadowColor = "#ffd700";
-                ctx.beginPath(); ctx.arc(c.x+15, c.y+15, 12, 0, Math.PI*2); ctx.fill();
-                ctx.shadowBlur = 0;
-                if (Math.abs(player.x - c.x) < 35 && Math.abs(player.y - c.y) < 60) {
-                    sessionCoins += 20; coins.splice(i, 1);
-                }
-                if (c.y > h) coins.splice(i, 1);
-            });
-
-            drawCar(player.x, player.y, player.w, player.h, CARS[currentCarIdx], false, player.tilt);
-
-            ctx.restore();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // --- GESTIÓN DE UI ---
-        function startGame() {
-            gameState = 'PLAYING';
-            score = 0; sessionCoins = 0; nitro = 100;
-            obstacles = []; coins = []; particles = [];
-            player.targetX = w/2 - 21; player.x = player.targetX; player.y = h - 160;
-            document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
-            document.getElementById('hud').classList.remove('hidden');
-            setTimeout(() => document.getElementById('hint-text').style.opacity = "0", 3000);
-            requestAnimationFrame(gameLoop);
-        }
-
-        function gameOver() {
-            gameState = 'OVER';
-            credits += sessionCoins;
-            document.getElementById('final-dist').innerText = `${Math.floor(score/10)} KM`;
-            document.getElementById('ui-over').classList.remove('hidden');
-        }
-
-        function toggleShop(show) {
-            document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
-            document.getElementById('ui-shop').classList.toggle('hidden', !show);
-            if (show) renderShop();
-            else if (gameState === 'MENU') document.getElementById('ui-menu').classList.remove('hidden');
-            else document.getElementById('ui-over').classList.remove('hidden');
-        }
-
-        function renderShop() {
-            const container = document.getElementById('car-selector');
-            document.getElementById('shop-credits').innerText = credits;
-            container.innerHTML = '';
-            CARS.forEach((car, i) => {
-                const card = document.createElement('div');
-                card.className = `p-3 rounded-lg border-2 ${currentCarIdx === i ? 'border-cyan-400 bg-cyan-900/20' : 'border-gray-800 bg-black/40'}`;
-                card.innerHTML = `
-                    <div class="text-[0.6rem] opacity-60 mb-2">${car.name}</div>
-                    <div style="height:35px; background:${car.color}; border-radius:4px; margin-bottom:10px;"></div>
-                    <button onclick="${car.owned ? `selectCar(${i})` : `buyCar(${i})`}" class="w-full text-[0.7rem] font-bold ${car.owned || credits >= car.price ? 'text-cyan-400' : 'text-gray-600'}">
-                        ${car.owned ? (currentCarIdx === i ? 'EQUIPADO' : 'USAR') : `$${car.price}`}
-                    </button>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        function buyCar(i) {
-            if (credits >= CARS[i].price) { credits -= CARS[i].price; CARS[i].owned = true; currentCarIdx = i; renderShop(); }
-        }
-        function selectCar(i) { currentCarIdx = i; renderShop(); }
-
-        initAI();
-    </script>
+    let c1, c2;
+    function renderCharts() {
+        const ctxD = document.getElementById('dayChart').getContext('2d');
+        if(c1) c1.destroy();
+        c1 = new Chart(ctxD, { 
+            type: 'doughnut', 
+            data: { 
+                labels: ['SUEÑO', 'CELULAR', 'OK'], 
+                datasets: [{ data: [db.suenos, db.celular, 10], backgroundColor: ['#ef4444', '#f59e0b', '#1e293b'], borderWidth: 0 }] 
+            }, 
+            options: { cutout: '80%', plugins: { legend: { display: false } } } 
+        });
+        
+        const ctxW = document.getElementById('weekChart').getContext('2d');
+        if(c2) c2.destroy();
+        c2 = new Chart(ctxW, { 
+            type: 'bar', 
+            data: { 
+                labels: ['L','M','X','J','V','S','D'], 
+                datasets: [{ label: 'Alertas Totales', data: db.semana, backgroundColor: '#38bdf8' }] 
+            } 
+        });
+    }
+</script>
 </body>
 </html>
