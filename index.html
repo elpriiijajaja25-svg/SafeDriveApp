@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -43,6 +43,18 @@
         .badge-seguro { background: rgba(16,185,129,0.2); color: #10b981; }
         .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.8s linear infinite; }
         .badge-celular { background: rgba(245,158,11,0.2); color: #f59e0b; }
+
+        /* FIX: Chip para mostrar el ID del dispositivo propio del conductor */
+        #chip-device-id { 
+            background: rgba(56,189,248,0.1); 
+            border: 1px solid rgba(56,189,248,0.3);
+            border-radius: 10px; 
+            padding: 10px 14px; 
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+        #chip-device-id span { color: var(--primary); font-weight: bold; font-family: monospace; }
 
         .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #334155; z-index: 4000; box-sizing: border-box; }
         .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; flex: 1; }
@@ -96,6 +108,10 @@
     </div>
 
     <div id="p-home" class="page active">
+        <!-- FIX: Chip que muestra a qué topic está escuchando este conductor -->
+        <div id="chip-device-id">
+            📡 Escuchando topic: <span id="lbl-topic-conductor">—</span>
+        </div>
         <div class="card" style="text-align: center; display: flex; justify-content: center; align-items: center;">
             <canvas id="dayChart" style="max-height: 140px; max-width: 140px;"></canvas>
         </div>
@@ -111,6 +127,17 @@
         <div class="grid-dispositivos" id="lista-flota">
             <p id="no-disp-msg" style="color: #64748b; font-size: 0.9rem; text-align: center; margin-top: 20px;">Esperando señales de dispositivos...</p>
         </div>
+
+        <!-- Panel de debug: muestra cada mensaje MQTT crudo que llega -->
+        <div style="margin-top: 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <small style="color:#64748b; font-weight:bold;">📡 Log MQTT en vivo</small>
+                <small onclick="document.getElementById('debug-log').innerHTML=''" style="color:#ef4444; cursor:pointer;">limpiar</small>
+            </div>
+            <div id="debug-log" style="background:#0a0f1e; border:1px solid #334155; border-radius:12px; padding:10px; max-height:180px; overflow-y:auto; font-family:monospace; font-size:0.72rem; color:#94a3b8;">
+                <span style="color:#334155;">— sin mensajes aún —</span>
+            </div>
+        </div>
     </div>
 
     <div id="p-stats" class="page">
@@ -125,7 +152,7 @@
     <div id="p-test" class="page">
         <h3 style="margin-top: 0;">Panel de Pruebas</h3>
         <button onclick="setupAudio()" style="background: var(--success); color: white; margin-bottom: 10px;">1. Activar Altavoz</button>
-        <button onclick="enviarTest('SUEÑO')" style="background: var(--primary); color: black; margin-bottom: 10px;">Test Microsueño</button>
+        <button onclick="enviarTest('1')" style="background: var(--primary); color: black; margin-bottom: 10px;">Test Microsueño</button>
         <button onclick="enviarTest('CELULAR')" style="background: var(--warning); color: black;">Test Celular</button>
         <button onclick="firebase.auth().signOut()" style="margin-top: 20px; background: transparent; color: var(--danger);">Cerrar Sesión</button>
     </div>
@@ -162,11 +189,21 @@
     let audio = null, osc = null;
     let rolActual = "";
     let dispositivosFlota = {};
-
-    // Contador para asignar números amigables a topics nuevos
     let contadorDispositivos = 0;
-    // Mapa de topic -> nombre amigable persistente durante la sesión
     const nombresAmigables = {};
+
+    // =====================================================================
+    // FIX PRINCIPAL: Un solo cliente MQTT con wildcard "pepe_antifatiga/#"
+    // El filtrado por rol se hace en el handler de mensajes, no con topics.
+    // Así ambos roles coexisten sin interferencia.
+    // =====================================================================
+    const TOPIC_BASE = "pepe_antifatiga";
+    const TOPIC_WILDCARD = TOPIC_BASE + "/#";
+
+    // El conductor puede tener su propio topic si conoce su device ID.
+    // Si no, escucha TODOS los mensajes del prefijo y reacciona a cualquiera.
+    // Para producción: el ESP32 del conductor podría enviar su ID por URL o QR.
+    let topicConductorFiltro = null; // null = acepta cualquier dispositivo
 
     const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
@@ -184,11 +221,20 @@
         document.getElementById('p-selector-rol').style.display = 'none';
         const menu = document.getElementById('menu-navegacion');
         
+        // FIX: Siempre nos suscribimos al MISMO wildcard.
+        // No hace falta unsuscribirse y volver a suscribirse cada vez.
+        // El cliente ya está suscrito desde el evento 'connect'.
+        
         if (rol === 'conductor') {
-            // FIX: unsuscribirse del wildcard admin antes de suscribirse al topic propio
-            client.unsubscribe("pepe_antifatiga/#");
-            client.subscribe("pepe_antifatiga/microsuenos");
-            
+            // Leer device ID desde URL si el conductor lo pasa como parámetro
+            // Ejemplo: safedrive.html?device=sd-a1b2c3d4e5f6
+            const params = new URLSearchParams(window.location.search);
+            const deviceParam = params.get('device');
+            topicConductorFiltro = deviceParam ? (TOPIC_BASE + "/" + deviceParam) : null;
+
+            const labelTopic = topicConductorFiltro || (TOPIC_BASE + "/# (cualquier dispositivo)");
+            document.getElementById('lbl-topic-conductor').innerText = labelTopic;
+
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
                 <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Stats</div>
@@ -197,10 +243,7 @@
             nav('p-home', menu.children[0]);
 
         } else {
-            // FIX: escuchar el mismo prefijo real que usa el ESP32
-            client.unsubscribe("pepe_antifatiga/microsuenos");
-            client.subscribe("pepe_antifatiga/#");
-            
+            topicConductorFiltro = null;
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-admin-flota', this)">🏢<br>Flota</div>
                 <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Historial</div>
@@ -211,30 +254,77 @@
     }
 
     function volverAlSelector() {
-        // Limpiar suscripciones al salir
-        client.unsubscribe("pepe_antifatiga/#");
-        client.unsubscribe("pepe_antifatiga/microsuenos");
         rolActual = "";
+        topicConductorFiltro = null;
         document.getElementById('p-selector-rol').style.display = 'flex';
         stopAll();
     }
     
-    client.on('connect', () => { 
-        document.getElementById('status-txt').innerText = "● Broker Conectado";
-        document.getElementById('status-txt').style.color = "var(--success)";
+    function logDebug(topic, msg, color) {
+        const log = document.getElementById('debug-log');
+        if (!log) return;
+        const hora = new Date().toLocaleTimeString();
+        const linea = document.createElement('div');
+        linea.style.color = color || '#94a3b8';
+        linea.style.borderBottom = '1px solid #1e293b';
+        linea.style.paddingBottom = '3px';
+        linea.style.marginBottom = '3px';
+        linea.innerText = `[${hora}] ${topic} → "${msg}"`;
+        // Limpiar placeholder si existe
+        const placeholder = log.querySelector('span');
+        if (placeholder) placeholder.remove();
+        log.prepend(linea);
+        // Máximo 30 líneas
+        while (log.children.length > 30) log.removeChild(log.lastChild);
+    }
+
+    client.on('connect', () => {
+        client.subscribe(TOPIC_WILDCARD, (err) => {
+            if (!err) {
+                document.getElementById('status-txt').innerText = "● Broker Conectado";
+                document.getElementById('status-txt').style.color = "var(--success)";
+                logDebug('SISTEMA', 'Suscrito a ' + TOPIC_WILDCARD, '#10b981');
+            } else {
+                logDebug('SISTEMA', 'Error al suscribirse: ' + err, '#ef4444');
+            }
+        });
         refresh();
+    });
+
+    client.on('error', (err) => {
+        logDebug('ERROR MQTT', err.message, '#ef4444');
+        document.getElementById('status-txt').innerText = "● Error conexión";
+        document.getElementById('status-txt').style.color = "var(--danger)";
+    });
+
+    client.on('reconnect', () => {
+        logDebug('SISTEMA', 'Reconectando al broker...', '#f59e0b');
+        document.getElementById('status-txt').innerText = "● Reconectando...";
+        document.getElementById('status-txt').style.color = "var(--warning)";
     });
 
     client.on('message', (topic, m) => { 
         const msg = m.toString();
-        
-        if (rolActual === 'conductor' && topic === "pepe_antifatiga/microsuenos") {
-            if (msg === 'SUEÑO' || msg === '1') alerta('sueno');
-            if (msg === 'CELULAR') alerta('celular');
-            if (msg === '0' || msg === 'OK') stopAll(); 
+        // Loguear TODOS los mensajes que llegan, sin importar el rol
+        logDebug(topic, msg, topic.startsWith(TOPIC_BASE) ? '#38bdf8' : '#64748b');
 
-        } else if (rolActual === 'admin' && topic.startsWith("pepe_antifatiga/")) {
-            // FIX: generar nombre amigable persistente por topic
+        if (rolActual === 'conductor') {
+            // FIX: Si hay filtro de dispositivo, ignorar otros topics.
+            // Si no hay filtro, acepta mensajes de cualquier dispositivo del prefijo.
+            const topicValido = topicConductorFiltro 
+                ? topic === topicConductorFiltro 
+                : topic.startsWith(TOPIC_BASE + "/");
+
+            if (!topicValido) return;
+
+            if (msg === '1' || msg === 'SUEÑO') alerta('sueno');
+            else if (msg === 'CELULAR') alerta('celular');
+            else if (msg === '0' || msg === 'OK') stopAll();
+
+        } else if (rolActual === 'admin') {
+            // El admin escucha todos los dispositivos bajo el prefijo
+            if (!topic.startsWith(TOPIC_BASE + "/")) return;
+
             if (!nombresAmigables[topic]) {
                 contadorDispositivos++;
                 nombresAmigables[topic] = "Dispositivo " + contadorDispositivos;
@@ -267,8 +357,6 @@
         const llaves = Object.keys(dispositivosFlota);
         
         document.getElementById('no-disp-msg').style.display = llaves.length > 0 ? 'none' : 'block';
-
-        // Redibujar solo las mini-cards, no el mensaje
         contenedor.querySelectorAll('.mini-card').forEach(t => t.remove());
         
         llaves.forEach(topicKey => {
@@ -283,7 +371,7 @@
             div.innerHTML = `
                 <div>
                     <strong style="color: var(--primary); display:block;">${d.nombre}</strong>
-                    <small style="color: #64748b;">Topic: ${topicKey} • ${d.ultimoCambio}</small>
+                    <small style="color: #64748b;">Topic: ${topicKey.replace(TOPIC_BASE+"/","")} • ${d.ultimoCambio}</small>
                 </div>
                 <span class="badge-estado ${claseBadge}">${icono} ${d.estado}</span>
             `;
@@ -343,11 +431,10 @@
         renderCharts();
     }
 
-    function enviarTest(m) { 
-        const topicDeEnvio = (rolActual === 'conductor') 
-            ? "pepe_antifatiga/microsuenos" 
-            : "pepe_antifatiga/microsuenos";
-        client.publish(topicDeEnvio, m); 
+    // FIX: enviarTest publica en el topic real del conductor (o en uno de prueba)
+    function enviarTest(m) {
+        const topicTest = topicConductorFiltro || (TOPIC_BASE + "/test-web");
+        client.publish(topicTest, m);
     }
     
     function nav(id, el) { 
