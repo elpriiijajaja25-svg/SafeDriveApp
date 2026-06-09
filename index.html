@@ -3,84 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SafeDrive AI Pro</title>
+    <title>SafeDrive AI Pro & Flota</title>
     <link rel="manifest" href="manifest.json">
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --danger: #ef4444; --warning: #f59e0b; --success: #10b981; --text: #f1f5f9; }
         
-        /* CORRECCIÓN CELULAR: Cambiamos overflow:hidden por flex y min-height para que la barra inferior no se corte */
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: #000; 
-            color: var(--text); 
-            margin: 0; 
-            display: flex; 
-            justify-content: center; 
-            align-items: flex-start;
-            min-height: 100vh;
-        }
+        body { font-family: 'Inter', sans-serif; background: #000; color: var(--text); margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
+        .app-shell { width: 100%; max-width: 410px; height: 100vh; background: var(--bg); position: relative; display: flex; flex-direction: column; justify-content: space-between; }
         
-        /* CORRECCIÓN DISPLAY: Ajustamos el contenedor móvil para que sea flexible y respete la barra de navegación */
-        .app-shell { 
-            width: 100%; 
-            max-width: 410px; 
-            height: 100vh; 
-            background: var(--bg); 
-            position: relative; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: space-between;
-        }
-        
-        #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        #p-selector-rol { position: fixed; inset: 0; background: var(--bg); z-index: 6000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .btn-rol { background: var(--card); color: white; border: 1px solid #334155; padding: 20px; border-radius: 16px; font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; cursor: pointer; width: 80%; transition: 0.2s; }
+        .btn-rol:hover { border-color: var(--primary); background: #24334d; }
+
+        #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .btn-google { background: white; color: #000; border: none; padding: 15px 25px; border-radius: 50px; font-weight: bold; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 
         .emergency { display: none; position: absolute; inset: 0; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); color: white; }
         .blink { animation: blinker 0.2s linear infinite; }
         @keyframes blinker { 50% { opacity: 0.6; } }
         
-        .header { padding: 20px 20px 5px; flex-shrink: 0; }
+        .header { padding: 20px 20px 5px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
         .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
         .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; }
         .avatar img { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Espacio dinámico para que las páginas no tapen los botones inferiores */
-        .page { 
-            display: none; 
-            padding: 15px; 
-            flex: 1; 
-            overflow-y: auto; 
-            margin-bottom: 75px; 
-        }
+        .page { display: none; padding: 15px; flex: 1; overflow-y: auto; margin-bottom: 75px; }
         .page.active { display: block; }
         .card { background: var(--card); border-radius: 24px; padding: 15px; margin-bottom: 12px; border: 1px solid #334155; }
         
-        /* CORRECCIÓN MENÚ INFERIOR: Posicionamiento fijo con z-index alto para garantizar visibilidad en pantallas táctiles */
-        .nav { 
-            position: absolute; 
-            bottom: 0; 
-            width: 100%; 
-            background: #1e293b; 
-            display: flex; 
-            justify-content: space-around; 
-            padding: 12px 0; 
-            border-top: 1px solid #334155;
-            z-index: 4000;
-            box-sizing: border-box;
-        }
+        .grid-dispositivos { display: flex; flex-direction: column; gap: 12px; }
+        .mini-card { background: #1e293b; border-radius: 16px; padding: 15px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .badge-estado { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        .badge-seguro { background: rgba(16,185,129,0.2); color: #10b981; }
+        .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.8s linear infinite; }
+        .badge-celular { background: rgba(245,158,11,0.2); color: #f59e0b; }
+
+        .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #334155; z-index: 4000; box-sizing: border-box; }
         .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; flex: 1; }
         .nav-btn.active { color: var(--primary); font-weight: bold; }
         button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
     </style>
 </head>
 <body>
+
+<div id="p-selector-rol">
+    <h1 style="font-size: 3.5rem; margin: 0 0 10px 0;">🛡️</h1>
+    <h2 style="margin-bottom: 5px;">Selecciona tu Modo</h2>
+    <p style="color: #94a3b8; margin-bottom: 40px;">¿Cómo deseas usar la app hoy?</p>
+    <button class="btn-rol" onclick="seleccionarRol('conductor')">🚗 Modo Conductor</button>
+    <button class="btn-rol" onclick="seleccionarRol('admin')" style="border-color: var(--primary);">🏢 Modo Administrador</button>
+</div>
 
 <div id="p-login">
     <h1 style="font-size: 4rem; margin: 0;">🚗</h1>
@@ -94,13 +72,13 @@
 
 <div class="app-shell">
     
-    <div id="alert-sueno" class="emergency blink" style="background: rgba(239, 68, 68, 0.95);">
+    <div id="alert-sueno" class="emergency blink" style="background: rgba(239,68,68,0.95);">
         <h1 style="font-size: 5rem;">😴</h1>
         <h2>¡MICROSUEÑO!</h2>
         <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%;">ESTOY DESPIERTO</button>
     </div>
 
-    <div id="alert-celular" class="emergency" style="background: rgba(245, 158, 11, 0.95);">
+    <div id="alert-celular" class="emergency" style="background: rgba(245,158,11,0.95);">
         <h1 style="font-size: 5rem;">📱</h1>
         <h2>¡DEJE EL CELULAR!</h2>
         <button onclick="stopAll()" style="background: white; color: var(--warning); width: 60%;">ENTENDIDO</button>
@@ -114,6 +92,7 @@
                 <small id="status-txt" style="color: var(--danger);">● Offline</small>
             </div>
         </div>
+        <button onclick="volverAlSelector()" style="width: auto; padding: 6px 12px; font-size: 0.75rem; background: #334155; color: white;">Cambiar Rol</button>
     </div>
 
     <div id="p-home" class="page active">
@@ -123,6 +102,14 @@
         <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
             <h4 style="margin: 0;">Estado de Conducción</h4>
             <p id="fatigue-msg" style="margin: 5px 0 0; font-size: 0.9rem; color: var(--success);">Conducción segura.</p>
+        </div>
+    </div>
+
+    <div id="p-admin-flota" class="page">
+        <h3 style="margin-top: 0; color: var(--primary);">Monitoreo de Flota Activa</h3>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 15px;">Dispositivos transmitiendo en tiempo real:</p>
+        <div class="grid-dispositivos" id="lista-flota">
+            <p id="no-disp-msg" style="color: #64748b; font-size: 0.9rem; text-align: center; margin-top: 20px;">Esperando señales de dispositivos...</p>
         </div>
     </div>
 
@@ -143,11 +130,7 @@
         <button onclick="firebase.auth().signOut()" style="margin-top: 20px; background: transparent; color: var(--danger);">Cerrar Sesión</button>
     </div>
 
-    <nav class="nav">
-        <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
-        <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Stats</div>
-        <div class="nav-btn" onclick="nav('p-test', this)">⚙️<br>Config</div>
-    </nav>
+    <nav class="nav" id="menu-navegacion"></nav>
 </div>
 
 <script>
@@ -177,15 +160,18 @@
     });
 
     let audio = null, osc = null;
+    let rolActual = "";
+    let dispositivosFlota = {};
 
-    /* SOLUCIÓN GITHUB PAGES: Puerto 8084 y protocolo seguro 'wss' para que no rechace la conexión */
+    // Contador para asignar números amigables a topics nuevos
+    let contadorDispositivos = 0;
+    // Mapa de topic -> nombre amigable persistente durante la sesión
+    const nombresAmigables = {};
+
     const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-    const MQTT_TOPIC = "pepe_antifatiga/microsuenos";
 
     let db = JSON.parse(localStorage.getItem('safedrive_db_v2')) || { 
-        semana: [0,0,0,0,0,0,0], 
-        suenos: 0, 
-        celular: 0 
+        semana: [0,0,0,0,0,0,0], suenos: 0, celular: 0 
     };
 
     function setupAudio() { 
@@ -193,30 +179,127 @@
         alert("Sonido de Alarma Sincronizado"); 
     }
     
+    function seleccionarRol(rol) {
+        rolActual = rol;
+        document.getElementById('p-selector-rol').style.display = 'none';
+        const menu = document.getElementById('menu-navegacion');
+        
+        if (rol === 'conductor') {
+            // FIX: unsuscribirse del wildcard admin antes de suscribirse al topic propio
+            client.unsubscribe("pepe_antifatiga/#");
+            client.subscribe("pepe_antifatiga/microsuenos");
+            
+            menu.innerHTML = `
+                <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
+                <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Stats</div>
+                <div class="nav-btn" onclick="nav('p-test', this)">⚙️<br>Config</div>
+            `;
+            nav('p-home', menu.children[0]);
+
+        } else {
+            // FIX: escuchar el mismo prefijo real que usa el ESP32
+            client.unsubscribe("pepe_antifatiga/microsuenos");
+            client.subscribe("pepe_antifatiga/#");
+            
+            menu.innerHTML = `
+                <div class="nav-btn active" onclick="nav('p-admin-flota', this)">🏢<br>Flota</div>
+                <div class="nav-btn" onclick="nav('p-stats', this)">📈<br>Historial</div>
+            `;
+            nav('p-admin-flota', menu.children[0]);
+            actualizarInterfazFlota();
+        }
+    }
+
+    function volverAlSelector() {
+        // Limpiar suscripciones al salir
+        client.unsubscribe("pepe_antifatiga/#");
+        client.unsubscribe("pepe_antifatiga/microsuenos");
+        rolActual = "";
+        document.getElementById('p-selector-rol').style.display = 'flex';
+        stopAll();
+    }
+    
     client.on('connect', () => { 
-        document.getElementById('status-txt').innerText = "● Sistema Online";
+        document.getElementById('status-txt').innerText = "● Broker Conectado";
         document.getElementById('status-txt').style.color = "var(--success)";
-        client.subscribe(MQTT_TOPIC);
         refresh();
     });
 
-    client.on('message', (t, m) => { 
+    client.on('message', (topic, m) => { 
         const msg = m.toString();
-        console.log("Señal recibida:", msg);
-        if(msg === 'SUEÑO' || msg === '1') alerta('sueno');
-        if(msg === 'CELULAR') alerta('celular');
-        if(msg === '0' || msg === 'OK') stopAll(); 
+        
+        if (rolActual === 'conductor' && topic === "pepe_antifatiga/microsuenos") {
+            if (msg === 'SUEÑO' || msg === '1') alerta('sueno');
+            if (msg === 'CELULAR') alerta('celular');
+            if (msg === '0' || msg === 'OK') stopAll(); 
+
+        } else if (rolActual === 'admin' && topic.startsWith("pepe_antifatiga/")) {
+            // FIX: generar nombre amigable persistente por topic
+            if (!nombresAmigables[topic]) {
+                contadorDispositivos++;
+                nombresAmigables[topic] = "Dispositivo " + contadorDispositivos;
+            }
+            const nombreAmigable = nombresAmigables[topic];
+
+            if (!dispositivosFlota[topic]) {
+                dispositivosFlota[topic] = {
+                    nombre: nombreAmigable,
+                    estado: "Seguro",
+                    ultimoCambio: new Date().toLocaleTimeString()
+                };
+            }
+
+            if (msg === '1' || msg === 'SUEÑO') {
+                dispositivosFlota[topic].estado = "CRÍTICO — Microsueño";
+            } else if (msg === '0' || msg === 'OK') {
+                dispositivosFlota[topic].estado = "Seguro";
+            } else if (msg === 'CELULAR') {
+                dispositivosFlota[topic].estado = "Distracción celular";
+            }
+
+            dispositivosFlota[topic].ultimoCambio = new Date().toLocaleTimeString();
+            actualizarInterfazFlota();
+        }
     });
+
+    function actualizarInterfazFlota() {
+        const contenedor = document.getElementById('lista-flota');
+        const llaves = Object.keys(dispositivosFlota);
+        
+        document.getElementById('no-disp-msg').style.display = llaves.length > 0 ? 'none' : 'block';
+
+        // Redibujar solo las mini-cards, no el mensaje
+        contenedor.querySelectorAll('.mini-card').forEach(t => t.remove());
+        
+        llaves.forEach(topicKey => {
+            const d = dispositivosFlota[topicKey];
+            const esCritico  = d.estado.includes("CRÍTICO");
+            const esCelular  = d.estado.includes("celular");
+            const claseBadge = esCritico ? "badge-critico" : esCelular ? "badge-celular" : "badge-seguro";
+            const icono      = esCritico ? "😴" : esCelular ? "📱" : "✅";
+
+            const div = document.createElement('div');
+            div.className = 'mini-card';
+            div.innerHTML = `
+                <div>
+                    <strong style="color: var(--primary); display:block;">${d.nombre}</strong>
+                    <small style="color: #64748b;">Topic: ${topicKey} • ${d.ultimoCambio}</small>
+                </div>
+                <span class="badge-estado ${claseBadge}">${icono} ${d.estado}</span>
+            `;
+            contenedor.appendChild(div);
+        });
+    }
 
     function alerta(tipo) {
         const hoy = (new Date().getDay() + 6) % 7; 
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno').style.display = 'flex';
-            if (audio) { playTone(800, 'square'); }
+            if (audio) playTone(800, 'square');
             db.suenos++;
         } else {
             document.getElementById('alert-celular').style.display = 'flex';
-            if (audio) { playTone(400, 'sawtooth'); }
+            if (audio) playTone(400, 'sawtooth');
             db.celular++;
         }
         db.semana[hoy]++;
@@ -242,10 +325,8 @@
     function refresh() {
         document.getElementById('tot-sueno').innerText = db.suenos;
         document.getElementById('tot-cel').innerText = db.celular;
-        
         const card = document.getElementById('fatigue-card');
-        const msg = document.getElementById('fatigue-msg');
-
+        const msg  = document.getElementById('fatigue-msg');
         if (db.suenos >= 3) {
             card.style.borderLeft = "8px solid var(--danger)";
             msg.innerText = "¡PELIGRO! Demasiados microsueños.";
@@ -262,20 +343,26 @@
         renderCharts();
     }
 
-    function enviarTest(m) { client.publish(MQTT_TOPIC, m); }
+    function enviarTest(m) { 
+        const topicDeEnvio = (rolActual === 'conductor') 
+            ? "pepe_antifatiga/microsuenos" 
+            : "pepe_antifatiga/microsuenos";
+        client.publish(topicDeEnvio, m); 
+    }
     
     function nav(id, el) { 
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        if (document.getElementById(id)) document.getElementById(id).classList.add('active');
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        el.classList.add('active');
+        if (el) el.classList.add('active');
     }
 
     let c1, c2;
     function renderCharts() {
-        const ctxD = document.getElementById('dayChart').getContext('2d');
-        if(c1) c1.destroy();
-        c1 = new Chart(ctxD, { 
+        const canvasD = document.getElementById('dayChart');
+        if (!canvasD) return;
+        if (c1) c1.destroy();
+        c1 = new Chart(canvasD.getContext('2d'), { 
             type: 'doughnut', 
             data: { 
                 labels: ['SUEÑO', 'CELULAR', 'OK'], 
@@ -283,10 +370,10 @@
             }, 
             options: { cutout: '80%', plugins: { legend: { display: false } } } 
         });
-        
-        const ctxW = document.getElementById('weekChart').getContext('2d');
-        if(c2) c2.destroy();
-        c2 = new Chart(ctxW, { 
+        const canvasW = document.getElementById('weekChart');
+        if (!canvasW) return;
+        if (c2) c2.destroy();
+        c2 = new Chart(canvasW.getContext('2d'), { 
             type: 'bar', 
             data: { 
                 labels: ['L','M','X','J','V','S','D'], 
