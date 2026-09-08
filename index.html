@@ -37,16 +37,16 @@
         .badge-seguro { background: rgba(16,185,129,0.2); color: #10b981; }
         .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.8s linear infinite; }
         .badge-celular { background: rgba(245,158,11,0.2); color: #f59e0b; }
-        /* Chip ubicación conductor */
         .gps-chip { margin-top: 10px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 8px 12px; font-size: 0.78rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .gps-chip a { color: var(--primary); font-weight: bold; text-decoration: none; font-size: 0.78rem; white-space: nowrap; }
-        /* Chip GPS conductor (en p-home) */
         #chip-gps-conductor { background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 0.82rem; color: #94a3b8; }
         #chip-gps-conductor span { color: var(--primary); font-weight: bold; }
         .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #334155; z-index: 4000; box-sizing: border-box; }
         .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; flex: 1; }
         .nav-btn.active { color: var(--primary); font-weight: bold; }
         button { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-reset { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); padding: 8px 12px; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: 0.2s; margin-top: 10px; width: auto; }
+        .btn-reset:hover { background: rgba(239, 68, 68, 0.3); }
     </style>
 </head>
 <body>
@@ -96,12 +96,12 @@
 
     <!-- PÁGINA CONDUCTOR -->
     <div id="p-home" class="page active">
-        <!-- Chip GPS conductor -->
         <div id="chip-gps-conductor">
             📍 Ubicación: <span id="lbl-gps-estado">Solicitando permiso...</span>
         </div>
-        <div class="card" style="text-align: center; display: flex; justify-content: center; align-items: center;">
+        <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
             <canvas id="dayChart" style="max-height: 140px; max-width: 140px;"></canvas>
+            <button class="btn-reset" onclick="resetContadoresDelDia()">🔄 Reiniciar Contador Hoy</button>
         </div>
         <div class="card" id="fatigue-card" style="border-left: 8px solid var(--success);">
             <h4 style="margin: 0;">Estado de Conducción</h4>
@@ -116,7 +116,6 @@
         <div class="grid-dispositivos" id="lista-flota">
             <p id="no-disp-msg" style="color: #64748b; font-size: 0.9rem; text-align: center; margin-top: 20px;">Esperando señales de dispositivos...</p>
         </div>
-        <!-- Log debug -->
         <div style="margin-top: 20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                 <small style="color:#64748b; font-weight:bold;">📡 Log MQTT en vivo</small>
@@ -131,10 +130,13 @@
     <!-- PÁGINA STATS -->
     <div id="p-stats" class="page">
         <h3 style="margin-top: 0;">Reporte Semanal</h3>
-        <div class="card"><canvas id="weekChart" style="max-height: 180px;"></canvas></div>
+        <div class="card">
+            <canvas id="weekChart" style="max-height: 180px;"></canvas>
+        </div>
         <div class="card">
             <p style="margin: 5px 0;">Alertas de Sueño: <b id="tot-sueno">0</b></p>
             <p style="margin: 5px 0;">Alertas de Celular: <b id="tot-cel">0</b></p>
+            <button class="btn-reset" style="width:100%; margin-top:15px;" onclick="resetTodoElHistorial()">⚠️ Borrar Todo el Historial</button>
         </div>
     </div>
 
@@ -182,11 +184,8 @@
     let contadorDispositivos = 0;
     const nombresAmigables = {};
 
-    // ── GPS ────────────────────────────────────────────────────────
     let gpsWatchId = null;
     let topicConductorFiltro = null;
-    // topic de ubicación: pepe_antifatiga/sd-XXXX/gps
-    // topic de alertas:   pepe_antifatiga/sd-XXXX
 
     const TOPIC_BASE    = "pepe_antifatiga";
     const TOPIC_WILDCARD = TOPIC_BASE + "/#";
@@ -197,12 +196,21 @@
         semana: [0,0,0,0,0,0,0], suenos: 0, celular: 0
     };
 
+    // Pre-activación del motor de audio al primer clic global para evitar bloqueos del navegador
+    window.addEventListener('click', () => {
+        if (!audio) setupAudio();
+        else if (audio.state === 'suspended') audio.resume();
+    }, { once: true });
+
     function setupAudio() {
-        audio = new (window.AudioContext || window.webkitAudioContext)();
-        alert("Sonido de Alarma Sincronizado");
+        if (!audio) {
+            audio = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audio.state === 'suspended') {
+            audio.resume();
+        }
     }
 
-    // ── Iniciar GPS en el celular del conductor ────────────────────
     function iniciarGPS(topicBase) {
         const lbl = document.getElementById('lbl-gps-estado');
         if (!navigator.geolocation) {
@@ -211,7 +219,6 @@
         }
         lbl.innerText = "Esperando señal GPS...";
 
-        // Publicar ubicación cada vez que cambia (cada ~5s en movimiento)
         gpsWatchId = navigator.geolocation.watchPosition(
             pos => {
                 const lat = pos.coords.latitude.toFixed(6);
@@ -219,7 +226,6 @@
                 const acc = Math.round(pos.coords.accuracy);
                 lbl.innerHTML = `✅ Activo · <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" style="color:var(--primary);">Ver en mapa</a>`;
 
-                // Publicar al broker como JSON en el sub-topic /gps
                 const payload = JSON.stringify({ lat, lng, acc, t: Date.now() });
                 const topicGPS = topicBase + "/gps";
                 try { client.publish(topicGPS, payload); } catch(e) {}
@@ -239,8 +245,8 @@
         }
     }
 
-    // ── Selección de rol ───────────────────────────────────────────
     function seleccionarRol(rol) {
+        setupAudio();
         rolActual = rol;
         document.getElementById('p-selector-rol').style.display = 'none';
         const menu = document.getElementById('menu-navegacion');
@@ -250,7 +256,6 @@
             const deviceParam = params.get('device');
             topicConductorFiltro = deviceParam ? (TOPIC_BASE + "/" + deviceParam) : null;
 
-            // Iniciar GPS usando el topic del dispositivo
             const topicParaGPS = topicConductorFiltro || (TOPIC_BASE + "/web-sin-id");
             iniciarGPS(topicParaGPS);
 
@@ -281,7 +286,6 @@
         stopAll();
     }
 
-    // ── MQTT ───────────────────────────────────────────────────────
     function logDebug(topic, msg, color) {
         const log = document.getElementById('debug-log');
         if (!log) return;
@@ -326,9 +330,7 @@
         logDebug(topic, msg.length > 60 ? msg.substring(0,60)+'…' : msg,
             topic.startsWith(TOPIC_BASE) ? '#38bdf8' : '#64748b');
 
-        // ── Ignorar mensajes GPS en el modo conductor (son propios) ──
         if (topic.endsWith('/gps')) {
-            // Solo el admin los procesa (abajo)
             if (rolActual !== 'admin') return;
         }
 
@@ -345,13 +347,11 @@
         } else if (rolActual === 'admin') {
             if (!topic.startsWith(TOPIC_BASE + "/")) return;
 
-            // Extraer el device ID base (sin el /gps al final)
             const partes = topic.replace(TOPIC_BASE + "/", "").split("/");
             const deviceId = partes[0];
-            const subtopic = partes[1]; // "gps" o undefined
+            const subtopic = partes[1];
             const topicBase = TOPIC_BASE + "/" + deviceId;
 
-            // Crear entrada en flota si no existe
             if (!nombresAmigables[topicBase]) {
                 contadorDispositivos++;
                 nombresAmigables[topicBase] = "Dispositivo " + contadorDispositivos;
@@ -366,7 +366,6 @@
             }
 
             if (subtopic === 'gps') {
-                // Procesar ubicación GPS
                 try {
                     const gps = JSON.parse(msg);
                     dispositivosFlota[topicBase].lat = gps.lat;
@@ -374,7 +373,6 @@
                     dispositivosFlota[topicBase].acc = gps.acc;
                 } catch(e) {}
             } else {
-                // Procesar alerta de sueño/celular
                 if (msg === '1' || msg === 'SUEÑO') {
                     dispositivosFlota[topicBase].estado = "CRÍTICO — Microsueño";
                 } else if (msg === '0' || msg === 'OK') {
@@ -389,7 +387,6 @@
         }
     });
 
-    // ── Interfaz flota con ubicación ───────────────────────────────
     function actualizarInterfazFlota() {
         const contenedor = document.getElementById('lista-flota');
         const llaves = Object.keys(dispositivosFlota);
@@ -404,7 +401,6 @@
             const claseBadge = esCritico ? "badge-critico" : esCelular ? "badge-celular" : "badge-seguro";
             const icono = esCritico ? "😴" : esCelular ? "📱" : "✅";
 
-            // Bloque de ubicación
             let gpsHTML = '';
             if (d.lat && d.lng) {
                 const mapsUrl = `https://maps.google.com/?q=${d.lat},${d.lng}`;
@@ -437,11 +433,11 @@
         const hoy = (new Date().getDay() + 6) % 7;
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno').style.display = 'flex';
-            if (audio) playTone(800, 'square');
+            playTone(800, 'square');
             db.suenos++;
         } else {
             document.getElementById('alert-celular').style.display = 'flex';
-            if (audio) playTone(400, 'sawtooth');
+            playTone(400, 'sawtooth');
             db.celular++;
         }
         db.semana[hoy]++;
@@ -450,6 +446,7 @@
     }
 
     function playTone(freq, type) {
+        setupAudio();
         if (osc) stopAll();
         osc = audio.createOscillator();
         osc.type = type;
@@ -462,6 +459,22 @@
         document.getElementById('alert-sueno').style.display = 'none';
         document.getElementById('alert-celular').style.display = 'none';
         if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
+    }
+
+    // ── Funciones para reiniciar contadores / datos ──
+    function resetContadoresDelDia() {
+        db.suenos = 0;
+        db.celular = 0;
+        localStorage.setItem('safedrive_db_v2', JSON.stringify(db));
+        refresh();
+    }
+
+    function resetTodoElHistorial() {
+        if (confirm("¿Estás seguro de que deseas reiniciar todos los datos e historial acumulado?")) {
+            db = { semana: [0,0,0,0,0,0,0], suenos: 0, celular: 0 };
+            localStorage.setItem('safedrive_db_v2', JSON.stringify(db));
+            refresh();
+        }
     }
 
     function refresh() {
@@ -506,7 +519,7 @@
             type: 'doughnut',
             data: {
                 labels: ['SUEÑO', 'CELULAR', 'OK'],
-                datasets: [{ data: [db.suenos, db.celular, 10], backgroundColor: ['#ef4444', '#f59e0b', '#1e293b'], borderWidth: 0 }]
+                datasets: [{ data: [db.suenos, db.celular, (db.suenos === 0 && db.celular === 0) ? 10 : 0], backgroundColor: ['#ef4444', '#f59e0b', '#1e293b'], borderWidth: 0 }]
             },
             options: { cutout: '80%', plugins: { legend: { display: false } } }
         });
