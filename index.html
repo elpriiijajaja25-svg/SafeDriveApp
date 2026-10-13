@@ -97,7 +97,7 @@
     <!-- PÁGINA CONDUCTOR -->
     <div id="p-home" class="page active">
         <div class="chip-gps-bar">
-            📍 Ubicación Conductor: <span id="lbl-gps-estado">Solicitando permiso...</span>
+            📍 GPS Conductor (Enviando a Flota): <span id="lbl-gps-estado">Solicitando permiso...</span>
         </div>
         <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
             <canvas id="dayChart" style="max-height: 140px; max-width: 140px;"></canvas>
@@ -111,9 +111,6 @@
 
     <!-- PÁGINA ADMIN FLOTA -->
     <div id="p-admin-flota" class="page">
-        <div class="chip-gps-bar">
-            📍 GPS Administrador: <span id="lbl-gps-admin-estado">Solicitando permiso...</span>
-        </div>
         <h3 style="margin-top: 0; color: var(--primary);">Monitoreo de Flota Activa</h3>
         <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 15px;">Dispositivos transmitiendo en tiempo real:</p>
         <div class="grid-dispositivos" id="lista-flota">
@@ -210,31 +207,32 @@
         }
     }
 
-    function iniciarGPS(topicBase, targetElementId) {
+    function iniciarGPSConductor() {
         detenerGPS();
-        const lbl = document.getElementById(targetElementId);
+        const lbl = document.getElementById('lbl-gps-estado');
         if (!lbl) return;
 
         if (!navigator.geolocation) {
-            lbl.innerText = "GPS no disponible";
+            lbl.innerText = "GPS no disponible en este dispositivo";
             return;
         }
-        lbl.innerText = "Solicitando ubicación...";
+        lbl.innerText = "Solicitando permiso de GPS...";
 
         gpsWatchId = navigator.geolocation.watchPosition(
             pos => {
                 const lat = pos.coords.latitude.toFixed(6);
                 const lng = pos.coords.longitude.toFixed(6);
                 const acc = Math.round(pos.coords.accuracy);
-                lbl.innerHTML = `✅ Activo · <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" style="color:var(--primary);">Ver en mapa</a>`;
+                lbl.innerHTML = `✅ Compartiendo · <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" style="color:var(--primary);">Ver mi mapa</a>`;
 
+                // Publicamos en el tópico oficial del dispositivo 1
                 const payload = JSON.stringify({ lat, lng, acc, t: Date.now() });
-                const topicGPS = topicBase + "/gps";
+                const topicGPS = TOPIC_BASE + "/microsuenos/gps";
                 try { client.publish(topicGPS, payload); } catch(e) {}
             },
             err => {
-                if (err.code === 1) lbl.innerText = "❌ Permiso denegado";
-                else lbl.innerText = "⚠️ Error al obtener ubicación";
+                if (err.code === 1) lbl.innerText = "❌ Permiso de GPS denegado";
+                else lbl.innerText = "⚠️ No se pudo obtener ubicación GPS";
             },
             { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
         );
@@ -254,12 +252,10 @@
         const menu = document.getElementById('menu-navegacion');
 
         if (rol === 'conductor') {
-            const params = new URLSearchParams(window.location.search);
-            const deviceParam = params.get('device');
-            topicConductorFiltro = deviceParam ? (TOPIC_BASE + "/" + deviceParam) : null;
-
-            const topicParaGPS = topicConductorFiltro || (TOPIC_BASE + "/microsuenos");
-            iniciarGPS(topicParaGPS, 'lbl-gps-estado');
+            topicConductorFiltro = TOPIC_BASE + "/microsuenos";
+            
+            // Únicamente el celular del conductor activa el GPS para transmitir su ubicación real
+            iniciarGPSConductor();
 
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
@@ -269,8 +265,8 @@
             nav('p-home', menu.children[0]);
 
         } else {
-            // En modo Administrador también pedimos GPS para ubicar la central/admin
-            iniciarGPS(TOPIC_BASE + "/admin-gps", 'lbl-gps-admin-estado');
+            // El administrador NO activa su propio GPS, solo recibe el del conductor
+            detenerGPS();
             topicConductorFiltro = null;
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-admin-flota', this)">🏢<br>Flota</div>
@@ -339,8 +335,8 @@
         const deviceId = partes[0];
         const subtopic = partes[1];
 
-        // Ignoramos topics auxiliares que no son el dispositivo principal
-        if (deviceId === 'test-web' || deviceId === 'web-sin-id' || deviceId === 'admin-gps') return;
+        // Filtramos para ignorar topics auxiliares que no correspondan al dispositivo 1
+        if (deviceId === 'test-web' || deviceId === 'web-sin-id') return;
 
         const topicBase = TOPIC_BASE + "/" + deviceId;
 
@@ -366,7 +362,7 @@
         } else {
             if (msg === '1' || msg === 'SUEÑO') {
                 dispositivosFlota[topicBase].estado = "CRÍTICO — Microsueño";
-                alerta('sueno'); // Dispara alarma en cualquier modo (Conductor o Admin)
+                alerta('sueno'); // Suena la alarma tanto en el celular del conductor como en el de la central admin
             } else if (msg === '0' || msg === 'OK') {
                 dispositivosFlota[topicBase].estado = "Seguro";
                 stopAll();
@@ -405,7 +401,7 @@
                         <a href="${mapsUrl}" target="_blank">Ver en mapa →</a>
                     </div>`;
             } else {
-                gpsHTML = `<div class="gps-chip"><span style="color:#475569;">📍 Sin ubicación aún...</span></div>`;
+                gpsHTML = `<div class="gps-chip"><span style="color:#475569;">📍 Esperando ubicación del conductor...</span></div>`;
             }
 
             const div = document.createElement('div');
@@ -427,13 +423,12 @@
     function alerta(tipo) {
         const hoy = (new Date().getDay() + 6) % 7;
         
-        // Títulos personalizados según el rol seleccionado
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno-tit').innerText = (rolActual === 'admin') 
-                ? "⚠️ ¡ALERTA FLOTA: MICROSUEÑO DETECTADO!" 
+                ? "⚠️ ¡ALERTA FLOTA: MICROSUEÑO!" 
                 : "¡MICROSUEÑO DETECTADO!";
             document.getElementById('alert-sueno').style.display = 'flex';
-            playTone(1000, 'square'); // Tono de alta frecuencia ultrarrápido
+            playTone(1000, 'square');
             db.suenos++;
         } else {
             document.getElementById('alert-celular-tit').innerText = (rolActual === 'admin') 
@@ -452,7 +447,6 @@
         setupAudio();
         if (!audio) return;
         
-        // Reanudación instantánea si el motor estaba suspendido
         if (audio.state === 'suspended') {
             audio.resume();
         }
@@ -517,7 +511,7 @@
     }
 
     function enviarTest(m) {
-        const topicTest = topicConductorFiltro || (TOPIC_BASE + "/test-web");
+        const topicTest = TOPIC_BASE + "/microsuenos";
         client.publish(topicTest, m);
     }
 
