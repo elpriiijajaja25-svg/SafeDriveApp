@@ -21,8 +21,8 @@
         #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .btn-google { background: white; color: #000; border: none; padding: 15px 25px; border-radius: 50px; font-weight: bold; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .emergency { display: none; position: absolute; inset: 0; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); color: white; }
-        .blink { animation: blinker 0.2s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0.6; } }
+        .blink { animation: blinker 0.15s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0.4; } }
         .header { padding: 20px 20px 5px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
         .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
         .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; }
@@ -35,7 +35,7 @@
         .mini-card-header { display: flex; justify-content: space-between; align-items: center; }
         .badge-estado { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .badge-seguro { background: rgba(16,185,129,0.2); color: #10b981; }
-        .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.8s linear infinite; }
+        .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.5s linear infinite; }
         .badge-celular { background: rgba(245,158,11,0.2); color: #f59e0b; }
         .gps-chip { margin-top: 10px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 8px 12px; font-size: 0.78rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .gps-chip a { color: var(--primary); font-weight: bold; text-decoration: none; font-size: 0.78rem; white-space: nowrap; }
@@ -196,7 +196,6 @@
         semana: [0,0,0,0,0,0,0], suenos: 0, celular: 0
     };
 
-    // Pre-activación del motor de audio al primer clic global para evitar bloqueos del navegador
     window.addEventListener('click', () => {
         if (!audio) setupAudio();
         else if (audio.state === 'suspended') audio.resume();
@@ -234,7 +233,7 @@
                 if (err.code === 1) lbl.innerText = "❌ Permiso de ubicación denegado";
                 else lbl.innerText = "⚠️ No se pudo obtener ubicación";
             },
-            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+            { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
         );
     }
 
@@ -330,59 +329,57 @@
         logDebug(topic, msg.length > 60 ? msg.substring(0,60)+'…' : msg,
             topic.startsWith(TOPIC_BASE) ? '#38bdf8' : '#64748b');
 
-        if (topic.endsWith('/gps')) {
-            if (rolActual !== 'admin') return;
+        if (!topic.startsWith(TOPIC_BASE + "/")) return;
+
+        const partes = topic.replace(TOPIC_BASE + "/", "").split("/");
+        const deviceId = partes[0];
+        const subtopic = partes[1];
+        const topicBase = TOPIC_BASE + "/" + deviceId;
+
+        if (!nombresAmigables[topicBase]) {
+            contadorDispositivos++;
+            nombresAmigables[topicBase] = "Dispositivo " + contadorDispositivos;
+        }
+        if (!dispositivosFlota[topicBase]) {
+            dispositivosFlota[topicBase] = {
+                nombre: nombresAmigables[topicBase],
+                estado: "Seguro",
+                ultimoCambio: new Date().toLocaleTimeString(),
+                lat: null, lng: null, acc: null
+            };
         }
 
-        if (rolActual === 'conductor') {
-            const topicValido = topicConductorFiltro
-                ? topic === topicConductorFiltro
-                : topic.startsWith(TOPIC_BASE + "/");
-            if (!topicValido) return;
-
-            if (msg === '1' || msg === 'SUEÑO') alerta('sueno');
-            else if (msg === 'CELULAR') alerta('celular');
-            else if (msg === '0' || msg === 'OK') stopAll();
-
-        } else if (rolActual === 'admin') {
-            if (!topic.startsWith(TOPIC_BASE + "/")) return;
-
-            const partes = topic.replace(TOPIC_BASE + "/", "").split("/");
-            const deviceId = partes[0];
-            const subtopic = partes[1];
-            const topicBase = TOPIC_BASE + "/" + deviceId;
-
-            if (!nombresAmigables[topicBase]) {
-                contadorDispositivos++;
-                nombresAmigables[topicBase] = "Dispositivo " + contadorDispositivos;
+        if (subtopic === 'gps') {
+            try {
+                const gps = JSON.parse(msg);
+                dispositivosFlota[topicBase].lat = gps.lat;
+                dispositivosFlota[topicBase].lng = gps.lng;
+                dispositivosFlota[topicBase].acc = gps.acc;
+            } catch(e) {}
+        } else {
+            if (msg === '1' || msg === 'SUEÑO') {
+                dispositivosFlota[topicBase].estado = "CRÍTICO — Microsueño";
+            } else if (msg === '0' || msg === 'OK') {
+                dispositivosFlota[topicBase].estado = "Seguro";
+            } else if (msg === 'CELULAR') {
+                dispositivosFlota[topicBase].estado = "Distracción celular";
             }
-            if (!dispositivosFlota[topicBase]) {
-                dispositivosFlota[topicBase] = {
-                    nombre: nombresAmigables[topicBase],
-                    estado: "Seguro",
-                    ultimoCambio: new Date().toLocaleTimeString(),
-                    lat: null, lng: null, acc: null
-                };
-            }
+            dispositivosFlota[topicBase].ultimoCambio = new Date().toLocaleTimeString();
 
-            if (subtopic === 'gps') {
-                try {
-                    const gps = JSON.parse(msg);
-                    dispositivosFlota[topicBase].lat = gps.lat;
-                    dispositivosFlota[topicBase].lng = gps.lng;
-                    dispositivosFlota[topicBase].acc = gps.acc;
-                } catch(e) {}
-            } else {
-                if (msg === '1' || msg === 'SUEÑO') {
-                    dispositivosFlota[topicBase].estado = "CRÍTICO — Microsueño";
-                } else if (msg === '0' || msg === 'OK') {
-                    dispositivosFlota[topicBase].estado = "Seguro";
-                } else if (msg === 'CELULAR') {
-                    dispositivosFlota[topicBase].estado = "Distracción celular";
+            // Si estamos en modo conductor, evaluamos la alerta de manera instantánea
+            if (rolActual === 'conductor') {
+                const topicValido = topicConductorFiltro
+                    ? topic === topicConductorFiltro
+                    : true;
+                if (topicValido) {
+                    if (msg === '1' || msg === 'SUEÑO') alerta('sueno');
+                    else if (msg === 'CELULAR') alerta('celular');
+                    else if (msg === '0' || msg === 'OK') stopAll();
                 }
-                dispositivosFlota[topicBase].ultimoCambio = new Date().toLocaleTimeString();
             }
+        }
 
+        if (rolActual === 'admin') {
             actualizarInterfazFlota();
         }
     });
@@ -433,11 +430,11 @@
         const hoy = (new Date().getDay() + 6) % 7;
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno').style.display = 'flex';
-            playTone(800, 'square');
+            playTone(900, 'square'); // Frecuencia más aguda para mayor impacto
             db.suenos++;
         } else {
             document.getElementById('alert-celular').style.display = 'flex';
-            playTone(400, 'sawtooth');
+            playTone(450, 'sawtooth');
             db.celular++;
         }
         db.semana[hoy]++;
@@ -447,7 +444,10 @@
 
     function playTone(freq, type) {
         setupAudio();
-        if (osc) stopAll();
+        if (!audio) return;
+        if (audio.state === 'suspended') audio.resume();
+        if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
+        
         osc = audio.createOscillator();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, audio.currentTime);
@@ -461,7 +461,6 @@
         if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
     }
 
-    // ── Funciones para reiniciar contadores / datos ──
     function resetContadoresDelDia() {
         db.suenos = 0;
         db.celular = 0;
