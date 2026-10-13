@@ -20,9 +20,9 @@
         .btn-rol:hover { border-color: var(--primary); background: #24334d; }
         #p-login { position: fixed; inset: 0; background: var(--bg); z-index: 5000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .btn-google { background: white; color: #000; border: none; padding: 15px 25px; border-radius: 50px; font-weight: bold; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .emergency { display: none; position: absolute; inset: 0; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); color: white; }
-        .blink { animation: blinker 0.15s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0.4; } }
+        .emergency { display: none; position: absolute; inset: 0; z-index: 7000; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(15px); color: white; }
+        .blink { animation: blinker 0.1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0.3; } }
         .header { padding: 20px 20px 5px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
         .user-chip { display: flex; align-items: center; gap: 12px; background: var(--card); padding: 8px 15px; border-radius: 50px; border: 1px solid #334155; }
         .avatar { width: 32px; height: 32px; background: var(--primary); border-radius: 50%; color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; }
@@ -35,12 +35,12 @@
         .mini-card-header { display: flex; justify-content: space-between; align-items: center; }
         .badge-estado { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .badge-seguro { background: rgba(16,185,129,0.2); color: #10b981; }
-        .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.5s linear infinite; }
+        .badge-critico { background: rgba(239,68,68,0.2); color: #ef4444; animation: blinker 0.4s linear infinite; }
         .badge-celular { background: rgba(245,158,11,0.2); color: #f59e0b; }
         .gps-chip { margin-top: 10px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 10px; padding: 8px 12px; font-size: 0.78rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .gps-chip a { color: var(--primary); font-weight: bold; text-decoration: none; font-size: 0.78rem; white-space: nowrap; }
-        #chip-gps-conductor { background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 0.82rem; color: #94a3b8; }
-        #chip-gps-conductor span { color: var(--primary); font-weight: bold; }
+        .chip-gps-bar { background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 0.82rem; color: #94a3b8; }
+        .chip-gps-bar span { color: var(--primary); font-weight: bold; }
         .nav { position: absolute; bottom: 0; width: 100%; background: #1e293b; display: flex; justify-content: space-around; padding: 12px 0; border-top: 1px solid #334155; z-index: 4000; box-sizing: border-box; }
         .nav-btn { cursor: pointer; color: #64748b; font-size: 0.75rem; text-align: center; flex: 1; }
         .nav-btn.active { color: var(--primary); font-weight: bold; }
@@ -73,13 +73,13 @@
 
     <div id="alert-sueno" class="emergency blink" style="background: rgba(239,68,68,0.95);">
         <h1 style="font-size: 5rem;">😴</h1>
-        <h2>¡MICROSUEÑO!</h2>
-        <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%;">ESTOY DESPIERTO</button>
+        <h2 id="alert-sueno-tit">¡MICROSUEÑO DETECTADO!</h2>
+        <button onclick="stopAll()" style="background: white; color: var(--danger); width: 60%;">SILENCIAR ALARMA</button>
     </div>
 
     <div id="alert-celular" class="emergency" style="background: rgba(245,158,11,0.95);">
         <h1 style="font-size: 5rem;">📱</h1>
-        <h2>¡DEJE EL CELULAR!</h2>
+        <h2 id="alert-celular-tit">¡DISTRACTOR DETECTADO!</h2>
         <button onclick="stopAll()" style="background: white; color: var(--warning); width: 60%;">ENTENDIDO</button>
     </div>
 
@@ -96,8 +96,8 @@
 
     <!-- PÁGINA CONDUCTOR -->
     <div id="p-home" class="page active">
-        <div id="chip-gps-conductor">
-            📍 Ubicación: <span id="lbl-gps-estado">Solicitando permiso...</span>
+        <div class="chip-gps-bar">
+            📍 Ubicación Conductor: <span id="lbl-gps-estado">Solicitando permiso...</span>
         </div>
         <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
             <canvas id="dayChart" style="max-height: 140px; max-width: 140px;"></canvas>
@@ -111,6 +111,9 @@
 
     <!-- PÁGINA ADMIN FLOTA -->
     <div id="p-admin-flota" class="page">
+        <div class="chip-gps-bar">
+            📍 GPS Administrador: <span id="lbl-gps-admin-estado">Solicitando permiso...</span>
+        </div>
         <h3 style="margin-top: 0; color: var(--primary);">Monitoreo de Flota Activa</h3>
         <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 15px;">Dispositivos transmitiendo en tiempo real:</p>
         <div class="grid-dispositivos" id="lista-flota">
@@ -195,10 +198,8 @@
         semana: [0,0,0,0,0,0,0], suenos: 0, celular: 0
     };
 
-    window.addEventListener('click', () => {
-        if (!audio) setupAudio();
-        else if (audio.state === 'suspended') audio.resume();
-    }, { once: true });
+    window.addEventListener('touchstart', () => setupAudio(), { once: true });
+    window.addEventListener('click', () => setupAudio(), { once: true });
 
     function setupAudio() {
         if (!audio) {
@@ -209,13 +210,16 @@
         }
     }
 
-    function iniciarGPS(topicBase) {
-        const lbl = document.getElementById('lbl-gps-estado');
+    function iniciarGPS(topicBase, targetElementId) {
+        detenerGPS();
+        const lbl = document.getElementById(targetElementId);
+        if (!lbl) return;
+
         if (!navigator.geolocation) {
-            lbl.innerText = "GPS no disponible en este dispositivo";
+            lbl.innerText = "GPS no disponible";
             return;
         }
-        lbl.innerText = "Esperando señal GPS...";
+        lbl.innerText = "Solicitando ubicación...";
 
         gpsWatchId = navigator.geolocation.watchPosition(
             pos => {
@@ -229,10 +233,10 @@
                 try { client.publish(topicGPS, payload); } catch(e) {}
             },
             err => {
-                if (err.code === 1) lbl.innerText = "❌ Permiso de ubicación denegado";
-                else lbl.innerText = "⚠️ No se pudo obtener ubicación";
+                if (err.code === 1) lbl.innerText = "❌ Permiso denegado";
+                else lbl.innerText = "⚠️ Error al obtener ubicación";
             },
-            { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
         );
     }
 
@@ -255,7 +259,7 @@
             topicConductorFiltro = deviceParam ? (TOPIC_BASE + "/" + deviceParam) : null;
 
             const topicParaGPS = topicConductorFiltro || (TOPIC_BASE + "/microsuenos");
-            iniciarGPS(topicParaGPS);
+            iniciarGPS(topicParaGPS, 'lbl-gps-estado');
 
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-home', this)">📊<br>Monitor</div>
@@ -265,7 +269,8 @@
             nav('p-home', menu.children[0]);
 
         } else {
-            detenerGPS();
+            // En modo Administrador también pedimos GPS para ubicar la central/admin
+            iniciarGPS(TOPIC_BASE + "/admin-gps", 'lbl-gps-admin-estado');
             topicConductorFiltro = null;
             menu.innerHTML = `
                 <div class="nav-btn active" onclick="nav('p-admin-flota', this)">🏢<br>Flota</div>
@@ -334,8 +339,8 @@
         const deviceId = partes[0];
         const subtopic = partes[1];
 
-        // Ignoramos topics auxiliares de prueba o genéricos que no sean tu ESP32 principal ('microsuenos')
-        if (deviceId === 'test-web' || deviceId === 'web-sin-id') return;
+        // Ignoramos topics auxiliares que no son el dispositivo principal
+        if (deviceId === 'test-web' || deviceId === 'web-sin-id' || deviceId === 'admin-gps') return;
 
         const topicBase = TOPIC_BASE + "/" + deviceId;
 
@@ -361,24 +366,15 @@
         } else {
             if (msg === '1' || msg === 'SUEÑO') {
                 dispositivosFlota[topicBase].estado = "CRÍTICO — Microsueño";
+                alerta('sueno'); // Dispara alarma en cualquier modo (Conductor o Admin)
             } else if (msg === '0' || msg === 'OK') {
                 dispositivosFlota[topicBase].estado = "Seguro";
+                stopAll();
             } else if (msg === 'CELULAR') {
                 dispositivosFlota[topicBase].estado = "Distracción celular";
+                alerta('celular');
             }
             dispositivosFlota[topicBase].ultimoCambio = new Date().toLocaleTimeString();
-
-            // Si estamos en modo conductor, evaluamos la alerta de manera instantánea
-            if (rolActual === 'conductor') {
-                const topicValido = topicConductorFiltro
-                    ? topic === topicConductorFiltro
-                    : true;
-                if (topicValido) {
-                    if (msg === '1' || msg === 'SUEÑO') alerta('sueno');
-                    else if (msg === 'CELULAR') alerta('celular');
-                    else if (msg === '0' || msg === 'OK') stopAll();
-                }
-            }
         }
 
         if (rolActual === 'admin') {
@@ -430,13 +426,21 @@
 
     function alerta(tipo) {
         const hoy = (new Date().getDay() + 6) % 7;
+        
+        // Títulos personalizados según el rol seleccionado
         if (tipo === 'sueno') {
+            document.getElementById('alert-sueno-tit').innerText = (rolActual === 'admin') 
+                ? "⚠️ ¡ALERTA FLOTA: MICROSUEÑO DETECTADO!" 
+                : "¡MICROSUEÑO DETECTADO!";
             document.getElementById('alert-sueno').style.display = 'flex';
-            playTone(900, 'square');
+            playTone(1000, 'square'); // Tono de alta frecuencia ultrarrápido
             db.suenos++;
         } else {
+            document.getElementById('alert-celular-tit').innerText = (rolActual === 'admin') 
+                ? "⚠️ ¡ALERTA FLOTA: DISTRACCIÓN!" 
+                : "¡DEJE EL CELULAR!";
             document.getElementById('alert-celular').style.display = 'flex';
-            playTone(450, 'sawtooth');
+            playTone(500, 'sawtooth');
             db.celular++;
         }
         db.semana[hoy]++;
@@ -447,8 +451,16 @@
     function playTone(freq, type) {
         setupAudio();
         if (!audio) return;
-        if (audio.state === 'suspended') audio.resume();
-        if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
+        
+        // Reanudación instantánea si el motor estaba suspendido
+        if (audio.state === 'suspended') {
+            audio.resume();
+        }
+        
+        if (osc) {
+            try { osc.stop(); osc.disconnect(); } catch(e){}
+            osc = null;
+        }
         
         osc = audio.createOscillator();
         osc.type = type;
@@ -460,7 +472,10 @@
     function stopAll() {
         document.getElementById('alert-sueno').style.display = 'none';
         document.getElementById('alert-celular').style.display = 'none';
-        if (osc) { try { osc.stop(); osc.disconnect(); } catch(e){} osc = null; }
+        if (osc) {
+            try { osc.stop(); osc.disconnect(); } catch(e){}
+            osc = null;
+        }
     }
 
     function resetContadoresDelDia() {
@@ -483,18 +498,20 @@
         document.getElementById('tot-cel').innerText = db.celular;
         const card = document.getElementById('fatigue-card');
         const msg  = document.getElementById('fatigue-msg');
-        if (db.suenos >= 3) {
-            card.style.borderLeft = "8px solid var(--danger)";
-            msg.innerText = "¡PELIGRO! Demasiados microsueños.";
-            msg.style.color = "var(--danger)";
-        } else if (db.celular > 0) {
-            card.style.borderLeft = "8px solid var(--warning)";
-            msg.innerText = "Atención: Distracciones.";
-            msg.style.color = "var(--warning)";
-        } else {
-            card.style.borderLeft = "8px solid var(--success)";
-            msg.innerText = "Conducción segura.";
-            msg.style.color = "var(--success)";
+        if (card && msg) {
+            if (db.suenos >= 3) {
+                card.style.borderLeft = "8px solid var(--danger)";
+                msg.innerText = "¡PELIGRO! Demasiados microsueños.";
+                msg.style.color = "var(--danger)";
+            } else if (db.celular > 0) {
+                card.style.borderLeft = "8px solid var(--warning)";
+                msg.innerText = "Atención: Distracciones.";
+                msg.style.color = "var(--warning)";
+            } else {
+                card.style.borderLeft = "8px solid var(--success)";
+                msg.innerText = "Conducción segura.";
+                msg.style.color = "var(--success)";
+            }
         }
         renderCharts();
     }
