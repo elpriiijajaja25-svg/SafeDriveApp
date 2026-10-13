@@ -181,7 +181,6 @@
     let audio = null, osc = null;
     let rolActual = "";
     let dispositivosFlota = {};
-    let contadorDispositivos = 0;
     const nombresAmigables = {};
 
     let gpsWatchId = null;
@@ -255,7 +254,7 @@
             const deviceParam = params.get('device');
             topicConductorFiltro = deviceParam ? (TOPIC_BASE + "/" + deviceParam) : null;
 
-            const topicParaGPS = topicConductorFiltro || (TOPIC_BASE + "/web-sin-id");
+            const topicParaGPS = topicConductorFiltro || (TOPIC_BASE + "/microsuenos");
             iniciarGPS(topicParaGPS);
 
             menu.innerHTML = `
@@ -334,11 +333,14 @@
         const partes = topic.replace(TOPIC_BASE + "/", "").split("/");
         const deviceId = partes[0];
         const subtopic = partes[1];
+
+        // Ignoramos topics auxiliares de prueba o genéricos que no sean tu ESP32 principal ('microsuenos')
+        if (deviceId === 'test-web' || deviceId === 'web-sin-id') return;
+
         const topicBase = TOPIC_BASE + "/" + deviceId;
 
         if (!nombresAmigables[topicBase]) {
-            contadorDispositivos++;
-            nombresAmigables[topicBase] = "Dispositivo " + contadorDispositivos;
+            nombresAmigables[topicBase] = "Dispositivo 1";
         }
         if (!dispositivosFlota[topicBase]) {
             dispositivosFlota[topicBase] = {
@@ -430,7 +432,7 @@
         const hoy = (new Date().getDay() + 6) % 7;
         if (tipo === 'sueno') {
             document.getElementById('alert-sueno').style.display = 'flex';
-            playTone(900, 'square'); // Frecuencia más aguda para mayor impacto
+            playTone(900, 'square');
             db.suenos++;
         } else {
             document.getElementById('alert-celular').style.display = 'flex';
